@@ -1,4 +1,4 @@
-[업데이트 안내.md](https://github.com/user-attachments/files/33857364/default.md)[Uploadi# CleanChecks v0.8.6
+# CleanChecks v0.8.6
 
 ## 적용
 1. 앱 설정에서 개인 점검 데이터를 먼저 백업해 주세요.
@@ -32,7 +32,8 @@ feat: 점검 조작 중심 UI 개편 및 데이터 관리 보완
 - 기록·설정·기본정보 화면의 간격과 조작 방식 통일
 - 사진 압축, 개인 백업, 점검자 삭제 보호 및 재시작 복원 포함
 - 기존 데이터와 현장 JSON 호환 유지
-ng 업데이트 안내.md…]()
+데이트 안내.md…]()
+
 
 # CleanChecks v0.7.0
 
