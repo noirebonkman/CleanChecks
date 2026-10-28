@@ -1,0 +1,24 @@
+import {useState,useEffect,type ReactNode} from 'react';
+import {Download,ShieldCheck} from 'lucide-react';
+import {APP_VERSION} from './version';
+import type {Inspection,State} from './inspection-model';
+import {inspectPersonal,type ConflictChoices} from './personal-data-transfer';
+const date=(s:string)=>new Date(s).toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+export function PersonalReview({state,payload,onImport}:{state:State;payload:unknown;onImport:(choices:ConflictChoices)=>Promise<void>}){
+ const info=inspectPersonal(state,payload),[choices,setChoices]=useState<ConflictChoices>({}),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const fresh=info.incoming.filter(r=>!state.records.some(x=>x.id===r.id)).length;
+ return <><p><strong>{info.name}</strong>님의 새 기록 {fresh}건 · 내용이 다른 기록 {info.conflicts.length}건</p><p>같은 이름의 기록을 합칩니다. 다른 점검자의 기록과 관리자 설정은 유지합니다.</p>
+ {info.conflicts.map(incoming=>{const local=state.records.find(x=>x.id===incoming.id)!;return <fieldset className="conflict-card" key={incoming.id}><legend>{incoming.site.name} · {incoming.date.replace('T',' ')}</legend><p>기기: {date(local.updated)}<br/>가져온 파일: {date(incoming.updated)}</p><div className="conflict-options"><label><input type="radio" name={'conflict-'+incoming.id} value="local" checked={choices[incoming.id]==='local'} onChange={()=>setChoices({...choices,[incoming.id]:'local'})}/>이 기기의 내용 유지</label><label><input type="radio" name={'conflict-'+incoming.id} value="incoming" checked={choices[incoming.id]==='incoming'} onChange={()=>setChoices({...choices,[incoming.id]:'incoming'})}/>가져온 파일 내용 사용</label></div></fieldset>})}
+ {error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full" disabled={busy||info.conflicts.some(r=>!choices[r.id])} onClick={async()=>{setBusy(true);setError('');try{await onImport(choices)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}}>{busy?'불러오는 중…':'확인하고 불러오기'}</button></>
+}
+type InstallPrompt=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:string}>};
+let availableInstall:InstallPrompt|null=null;
+if(typeof window!=='undefined')window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();availableInstall=e as InstallPrompt;window.dispatchEvent(new Event('lucent:install-ready'))});
+export function AppInformation(){
+ const[prompt,setPrompt]=useState<InstallPrompt|null>(null),[installed,setInstalled]=useState(false),[status,setStatus]=useState('');
+ useEffect(()=>{setInstalled(matchMedia('(display-mode: standalone)').matches);setPrompt(availableInstall);const capture=()=>setPrompt(availableInstall);const installed=()=>{setInstalled(true);setPrompt(null)};window.addEventListener('lucent:install-ready',capture);window.addEventListener('appinstalled',installed);return()=>{window.removeEventListener('lucent:install-ready',capture);window.removeEventListener('appinstalled',installed);}},[]);
+ return <section className="setting-card app-info"><div className="app-info-heading"><div className="app-info-icon"><ShieldCheck/></div><div><h2>앱 정보</h2><p className="app-version">현재 버전 v{APP_VERSION}</p></div></div><p>기기에 저장하는 루센트 현장점검</p><button className="setting-row" disabled={installed} onClick={async()=>{if(prompt){await prompt.prompt();const result=await prompt.userChoice;if(result.outcome==='accepted'){setInstalled(true);setPrompt(null)}}else setStatus('휴대폰 브라우저 메뉴에서 ‘앱 설치’ 또는 ‘홈 화면에 추가’를 선택해 주세요.')}}><Download size={19}/>{installed?'홈 화면 앱으로 사용 중':'홈 화면에 설치'}</button>{status&&<p className="hint" role="status">{status}</p>}</section>
+}
+const fieldNames:Record<string,string>={site:'현장 정보',date:'점검 일시',type:'점검 유형',cycle:'작업 주기',technician:'담당기사',answers:'항목 평가',rating:'종합평가',issues:'주요 지적사항',action:'개선 조치',assignee:'조치 담당자',due:'완료 예정일',actionState:'조치 확인',notes:'특이사항',photos:'첨부사진'};
+function value(v:unknown){if(v===null||v===undefined||v==='')return '없음';if(typeof v==='object')return JSON.stringify(v);return String(v)}
+export function AdminLog({logs,staff}:{logs:Record<string,unknown>[];staff:State['staff']}){return <div className="log-list">{logs.length?logs.slice().reverse().map((l,i)=>{const detail=l.detail as Record<string,any>||{};const actor=String(l.actorName||staff.find(s=>s.id===l.actor)?.name||l.actor||'관리자');return <details className="audit-card" key={i}><summary><strong>{String(l.action)}</strong><span>{date(String(l.at))} · {actor}</span></summary><dl><dt>작업자</dt><dd>{actor}</dd>{detail.site&&<><dt>현장</dt><dd>{String(detail.site)}</dd></>}<dt>앱 식별번호</dt><dd>{String(l.installId)}</dd></dl>{detail.changes?Object.entries(detail.changes as Record<string,{before:unknown;after:unknown}>).map(([key,c])=><div className="audit-change" key={key}><strong>{fieldNames[key]||key}</strong><p>이전: {value(c.before)}</p><p>변경: {value(c.after)}</p></div>):<pre>{JSON.stringify(detail,null,2)}</pre>}</details>}):<p>아직 변경이력이 없습니다.</p>}</div>}

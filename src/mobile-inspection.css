@@ -1,0 +1,98 @@
+/* Compact field inspection. Desktop layout and report export remain unchanged. */
+.inspection-information{min-width:0;flex:1}
+.inspection-information>summary{display:flex;align-items:center;gap:7px;list-style:none;cursor:pointer;min-height:44px;font-size:.8125rem;color:var(--muted)}
+.inspection-information>summary::-webkit-details-marker{display:none}
+.inspection-information>summary>svg:last-child{margin-left:auto;transition:transform .2s ease}
+.inspection-information[open]>summary>svg:last-child{transform:rotate(180deg)}
+.inspection-information-content{padding:4px 0 8px}
+.inspection-information .header-actions{max-width:none;width:100%;margin-top:8px}
+.inspection-information .header-actions button{flex:1}
+.section-bulk-short{display:none}
+.grade-legend{display:flex;align-items:center;flex-wrap:wrap;gap:5px 14px;color:var(--ink)}
+.grade-legend>span{display:inline-flex;align-items:baseline;gap:5px;white-space:nowrap}
+.grade-legend b{font-weight:750;color:var(--accent)}
+.grade-legend .legend-B b{color:var(--warning)}
+.grade-legend .legend-C b{color:var(--danger)}
+@media(max-width:760px){
+ .app:has(.inspection-heading) .topbar{min-height:54px;padding:5px 14px}
+ .update-banner{padding:2px 12px;gap:6px;font-size:.75rem;justify-content:space-between}
+ .update-banner button{font-size:.75rem;min-height:44px;padding:4px 0}
+ .inspection-heading{position:static;padding:5px 12px;gap:0;box-shadow:none}
+ .inspection-heading>div:first-child{display:flex;align-items:center;gap:10px;min-width:0}
+ .inspection-heading .back{flex-shrink:0}
+ .inspection-heading h1{min-width:0;overflow-wrap:anywhere}
+ .inspection-information{width:100%;flex-basis:100%}
+ .inspection-heading:has(.inspection-information:not([open])){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
+ .inspection-heading:has(.inspection-information:not([open]))>div:first-child{width:auto;min-width:0}
+ .inspection-information:not([open]){width:auto}
+ .inspection-information>summary{font-size:.75rem;gap:5px}
+ .inspection-information>summary>svg:first-child{display:none}
+ .inspection-information:not([open])>summary{white-space:nowrap}
+ .inspection-heading .back{min-height:36px;margin:0}
+ .inspection-heading h1{font-size:1.125rem;line-height:1.45}
+ .inspection-heading p{margin-top:3px;line-height:1.5}
+ .inspection-heading p:first-of-type{-webkit-line-clamp:1}
+ .header-actions{gap:6px}
+ .header-actions .secondary{min-height:44px;padding:6px 8px;font-size:.75rem;border-radius:9px;min-width:0}
+ .inspection-layout{padding:8px 12px;gap:8px}
+ .check-panel{scroll-margin-top:12px}
+ .section-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-bottom:6px}
+ .section-controls .mobile-section{flex:1 1 10rem;min-width:0;gap:6px;margin:0}
+ .section-controls .mobile-section select{min-width:0;width:100%;padding:7px 8px}
+ .section-controls .section-heading{flex:0 0 auto;margin:0}
+ .section-controls .section-bulk-label{display:none}
+ .section-controls .section-bulk-short{display:inline}
+ .section-controls .text-button{padding:5px 7px;gap:4px}
+ .mobile-section select{min-height:44px;padding:8px 10px;font-size:.875rem}
+ .mobile-section>span{font-size:.75rem;flex-shrink:0}
+ .check-panel .section-heading>div{display:none}
+ .check-panel .section-heading:not(:has(.text-button)){display:none}
+ .check-panel .section-heading{justify-content:flex-end;margin:0 0 4px}
+ .check-panel .section-heading .text-button{min-height:44px;font-size:.75rem}
+ .check-panel .criteria.grade-legend{font-size:.8125rem;line-height:1.5;gap:4px 12px;margin:0 0 6px;padding:6px 0}
+ .questions{gap:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:visible}
+ .questions .question{padding:8px 10px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none}
+ .questions .question:first-child{border-radius:12px 12px 0 0}
+ .questions .question:last-child{border-bottom:0;border-radius:0 0 12px 12px}
+ .question .question-text{gap:6px;margin-bottom:4px;align-items:baseline}
+ .question .question-text>span{min-width:20px;height:20px;font-size:.6875rem}
+ .question h3{font-size:.9375rem;line-height:1.4}
+ .question .grades{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+ .question .grades button{display:flex;align-items:center;justify-content:center;gap:0;min-width:0;min-height:44px;padding:7px 3px;border-radius:8px}
+ .question .grades button b{font-size:.875rem;min-width:0;font-weight:650;white-space:nowrap}
+ .question .grades button>span,.question .grades button>svg{display:none}
+ .check-footer{grid-template-columns:auto minmax(0,1fr) auto;gap:8px;margin-top:12px;padding:8px 0 max(8px,env(safe-area-inset-bottom))}
+ .check-footer>span{grid-column:auto;grid-row:auto;font-size:.6875rem;text-align:center}
+ .check-footer>button:first-child,.check-footer>button:last-child{grid-column:auto;grid-row:auto}
+ .check-footer .primary,.check-footer .secondary{min-height:44px;padding:8px 11px}
+ .summary{padding:16px 12px}
+ .summary textarea{min-height:88px}
+ .modal{padding:16px 16px max(16px,env(safe-area-inset-bottom))}
+ .modal .modal-title{padding-bottom:0}
+ .modal .modal-title h2{font-size:1.125rem}
+ .modal .basic-intro{font-size:.75rem;margin:5px 0 10px}
+ .modal .site-picker{margin-top:10px}
+ .modal .site-picker>label{margin:0 0 5px}
+ .modal .site-select{padding:8px 10px;min-height:48px;margin-top:4px}
+ .modal .site-select small{font-size:.6875rem;margin-top:2px;line-height:1.45}
+ .modal .site-dropdown{padding:6px;margin-top:5px}
+ .modal .site-options{max-height:min(28dvh,12rem);margin-top:4px}
+ .modal .site-options button{padding:8px;min-height:48px;gap:8px}
+ .modal .site-options strong{font-size:.8125rem}
+ .modal .site-options small{font-size:.6875rem;line-height:1.45;margin-top:2px}
+ .modal .site-picker .site-dropdown .search{min-height:44px;padding:0 10px;gap:6px}
+ .modal .site-picker .site-dropdown .search input{min-height:44px;padding:8px 0}
+ .modal .site-picker .search:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+ .modal .site-picker .search input:focus-visible{outline:none}
+ .modal .form-grid{grid-template-columns:repeat(auto-fit,minmax(min(9rem,100%),1fr));gap:0 10px}
+ .modal form>label,.modal .form-grid label{margin-top:12px;font-size:.8125rem}
+ .modal .form-grid input,.modal form>label>input{padding:9px 10px;min-height:44px;margin-top:6px}
+ .app:has(.inspection-heading[data-tall=true]) .mobile-basic-shortcut{bottom:82px}
+}
+/* Let enlarged text reflow rather than shrinking it to fit the compact footer. */
+@media(max-width:760px){.check-footer{grid-template-columns:auto minmax(0,1fr) auto}.check-footer .primary,.check-footer .secondary{white-space:normal}.question.invalid{position:relative;z-index:1}}
+/* Remove page-level stickiness; only navigation at the bottom remains available. */
+.app .inspection-heading,.app .inspection-heading[data-tall=true]{position:static}
+.app .compact-grades{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(prefers-reduced-motion:reduce){.inspection-information>summary>svg:last-child{transition:none}}
+@media(max-width:370px){.inspection-heading:has(.inspection-information:not([open])){display:flex;flex-wrap:wrap}.inspection-heading:has(.inspection-information:not([open]))>div:first-child{width:100%}.inspection-information:not([open]){margin-left:auto}}

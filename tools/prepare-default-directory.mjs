@@ -1,0 +1,15 @@
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {createHash} from 'node:crypto';
+import {readSites,encodeDirectory,decodeDirectory} from '../.test-work/api.mjs';
+const input=process.argv[2];
+if(!input)throw Error('Input workbook path is required.');
+const file=readFileSync(input);
+const result=await readSites({arrayBuffer:async()=>file.buffer.slice(file.byteOffset,file.byteOffset+file.byteLength)});
+const sites=result.valid.map(s=>({...s,id:'site-'+createHash('sha256').update(`${s.name}\0${s.zone}\0${s.address}`).digest('hex').slice(0,24)}));
+const text=await encodeDirectory({sites,staff:[]});
+const decoded=await decodeDirectory(text);
+if(decoded.sites.length!==sites.length)throw Error('Directory verification failed.');
+const output=resolve('public/JSON');mkdirSync(output,{recursive:true});
+writeFileSync(resolve(output,'site-directory.json'),text);
+console.log(JSON.stringify({included:sites.length,excludedRows:result.invalid.map(x=>x.row),verified:true}));
