@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.local
+private/
+*.backup.json
+*.settings.json
+.test-work/
+site-directory.enc.json
