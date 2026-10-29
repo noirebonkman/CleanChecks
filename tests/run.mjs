@@ -3,6 +3,14 @@ import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {build} from 'esbuild';
 import {JSDOM} from 'jsdom';
 import 'fake-indexeddb/auto';
+// Close browser-style channels when this Node test run finishes.
+const testChannels = new Set();
+const OriginalBroadcastChannel = globalThis.BroadcastChannel;
+if (OriginalBroadcastChannel) {
+ globalThis.BroadcastChannel = class extends OriginalBroadcastChannel {
+  constructor(name) { super(name); testChannels.add(this); }
+ };
+}
 const dom=new JSDOM('<!doctype html><html><body></body></html>',{url:'https://example.test/CleanChecks/',pretendToBeVisual:true});
 for(const key of ['window','document','localStorage','HTMLElement','Element','Node','Event','MouseEvent','CustomEvent','MutationObserver','FormData','getComputedStyle'])globalThis[key]=key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key];
 globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);globalThis.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);globalThis.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});dom.window.scrollTo=()=>{};dom.window.HTMLElement.prototype.scrollIntoView=()=>{};globalThis.IS_REACT_ACT_ENVIRONMENT=true;
@@ -322,7 +330,7 @@ const autoCatalog=await api.encodeDirectory({...stored,sites:[site]});
 assert.equal((await api.decodeDirectory(autoCatalog)).sites[0].id,site.id);
 assert.equal(JSON.parse(autoCatalog).staff.length,0);
 await api.save({...stored,sites:[],staff:[],records:[],sync:undefined,directoryDirty:false});
-let releaseCatalog;globalThis.fetch=()=>new Promise(resolve=>{releaseCatalog=()=>resolve(new Response(autoCatalog))});
+let releaseCatalog;globalThis.fetch=(url)=>String(url).startsWith('/api/')?Promise.resolve(new Response('{}',{status:401})):new Promise(resolve=>{releaseCatalog=()=>resolve(new Response(autoCatalog))});
 render(React.createElement(api.App));await screen.findByRole('heading',{name:'점검 기록'});
 fireEvent.click(screen.getByRole('button',{name:'점검자 추가',exact:true}));
 dialog=await screen.findByRole('dialog');fireEvent.change(within(dialog).getByLabelText('점검자 이름'),{target:{value:'첫 자동 점검자'}});fireEvent.submit(dialog.querySelector('form'));
@@ -482,5 +490,35 @@ globalThis.createImageBitmap=undefined;globalThis.Image=class{width=72;height=36
 URL.createObjectURL=()=> 'blob:decode-fallback';URL.revokeObjectURL=()=>{fallbackRevoked++};
 try{const decodedFallback=await api.decodePhoto(new Blob(['mock'],{type:'image/png'}));assert.equal(decodedFallback.width,72);assert.equal(decodedFallback.height,36);decodedFallback.close();assert.equal(fallbackRevoked,1);}finally{globalThis.Image=oldImageForFallback;globalThis.createImageBitmap=bitmapForFallback;URL.createObjectURL=urlForFallback;URL.revokeObjectURL=revokeForFallback}
 console.log('PASS: restricted theme storage, invalid preference, recoverable render error without deleting data, image decoder fallback and URL cleanup');
+
+cleanup();
+for(const role of ['owner','admin','inspector']){
+ const sessionUser={id:'server-'+role,username:role==='owner'?'ludmin':role,name:'서버 권한 검사',role,active:true};
+ let signedIn=true;
+ globalThis.fetch=async(url,options={})=>{
+  if(String(url)==='/api/session')return new Response(JSON.stringify({user:sessionUser}),{headers:{'Content-Type':'application/json'}});
+  if(String(url)==='/api/logout'){signedIn=false;return new Response('{"ok":true}',{headers:{'Content-Type':'application/json'}});}
+  return new Response('{}',{status:404});
+ };
+ render(React.createElement(api.App));
+ await screen.findByRole('heading',{name:'점검 기록'});
+ fireEvent.click(screen.getAllByRole('button',{name:'설정',exact:true})[0]);
+ await screen.findByText(role==='owner'?'최상위 운영자':role==='admin'?'서버 관리자':'서버 점검자');
+ if(role==='inspector'){
+  assert(!screen.queryByText('관리자 모드'));assert(!screen.queryByText('운영자 전용 관리'));
+  assert(screen.getByLabelText('이 서버 계정에 연결할 기기 점검자'));
+ }else{
+  assert(screen.getByText('관리자 모드'));
+  assert(!screen.queryByLabelText('이 서버 계정에 연결할 기기 점검자'));
+  assert.equal(!!screen.queryByText('운영자 전용 관리'),role==='owner');
+  fireEvent.click(screen.getByRole('button',{name:'관리자 로그아웃',exact:true}));
+  await waitFor(()=>assert(!screen.queryByText('관리자 모드')));assert.equal(signedIn,false);
+ }
+ cleanup();
+}
+console.log('PASS: owner/admin login immediately unlocks management without inspector binding; inspector stays restricted; logout revokes UI authority');
+
 globalThis.fetch=realFetch;rawDb.close();dom.window.close();
+for(const channel of testChannels)channel.close();
+globalThis.BroadcastChannel=OriginalBroadcastChannel;
 

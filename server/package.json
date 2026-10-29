@@ -1,0 +1,17 @@
+{
+  "name": "cleanchecks-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../tools/start-local-server.mjs",
+    "db:local": "wrangler d1 migrations apply cleanchecks --local --persist-to .wrangler/state-v092",
+    "db:remote": "wrangler d1 migrations apply cleanchecks --remote",
+    "deploy": "wrangler deploy",
+    "test": "node tests/integration.mjs && node tests/synchronization.mjs",
+    "deploy:check": "wrangler deploy --dry-run --outdir .test-work/deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0",
+    "miniflare": "^4.0.0"
+  }
+}

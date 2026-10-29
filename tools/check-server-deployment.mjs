@@ -1,0 +1,15 @@
+import {readFileSync,existsSync} from 'node:fs';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const configuration=JSON.parse(readFileSync(resolve(root,'server/wrangler.jsonc'),'utf8'));
+const dry=process.argv.includes('--dry-run');
+const errors=[];
+if(configuration.r2_buckets?.length)errors.push('R2 연결이 남아 있습니다.');
+if(!configuration.secrets?.required?.includes('APP_DATA_KEY'))errors.push('암호화 비밀키 필수 설정이 없습니다.');
+if(configuration.observability?.enabled!==false)errors.push('요청 관측 로그 설정을 확인하세요.');
+if(!dry&&(!configuration.d1_databases?.[0]?.database_id||configuration.d1_databases[0].database_id==='00000000-0000-0000-0000-000000000000'))errors.push('D1 database_id를 실제 값으로 바꾸세요.');
+const directory=resolve(root,'server',configuration.assets.directory);
+if(!existsSync(resolve(directory,'index.html')))errors.push('서버용 웹 파일을 먼저 빌드하세요.');
+if(errors.length)throw Error(errors.join('\n'));
+console.log(dry?'로컬 배포 구성 검사 통과':'배포 구성 검사 통과. Cloudflare Workers Free 요금제인지 대시보드에서 확인하세요.');

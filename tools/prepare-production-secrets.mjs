@@ -1,0 +1,10 @@
+import {existsSync,mkdirSync,writeFileSync} from 'node:fs';
+import {randomBytes} from 'node:crypto';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const folder=resolve(root,'private'),file=resolve(folder,'cloudflare-secrets.json');
+if(existsSync(file))throw Error('비밀키 파일이 이미 있습니다. 덮어쓰지 않았습니다. 기존 키를 보관하세요.');
+mkdirSync(folder,{recursive:true});
+writeFileSync(file,JSON.stringify({APP_DATA_KEY:randomBytes(32).toString('base64'),SETUP_TOKEN:randomBytes(32).toString('hex')},null,2)+'\n',{mode:0o600});
+console.log('private/cloudflare-secrets.json 생성 완료. 실제 값은 출력하지 않습니다. 이 파일을 안전하게 별도 보관하세요.');

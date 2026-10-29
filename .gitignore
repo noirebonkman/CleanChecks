@@ -6,3 +6,13 @@ private/
 *.settings.json
 .test-work/
 site-directory.enc.json
+
+server/.dev.vars
+server/.wrangler/
+server/.test-work/
+.env
+.env.*
+!.env.example
+
+.server-build/
+server/.dev.vars.*

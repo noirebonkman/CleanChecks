@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CleanChecks 서버 포함 실행" type="NodeJSConfigurationType" path-to-js-file="$PROJECT_DIR$/tools/start-local-server.mjs" working-dir="$PROJECT_DIR$">
+    <method v="2" />
+  </configuration>
+</component>
