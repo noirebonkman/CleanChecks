@@ -15,6 +15,7 @@ const chunkNames: Record<string, string> = {
     'workbox-window.prod.es5': 'offline-update',
 };
 export default defineConfig({ base: './', server: { fs: { deny: ['.env', '.env.*', '**/.env', '**/.env.*', '**/.dev.vars', '**/.dev.vars.*', '**/.git/**', '**/.wrangler/**', '**/private/**', '**/.server-build/**'] }, proxy: { '/api': { target: 'http://127.0.0.1:8787', changeOrigin: false } } }, build: {
+        manifest: true,
         rollupOptions: {
             output: {
                 entryFileNames: 'assets/application-v' + release + '.js',

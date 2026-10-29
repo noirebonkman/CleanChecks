@@ -93,7 +93,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
                 throw new ApiError(503, '기존 자료의 암호화 키를 확인해 주세요. 새 키로 덮어쓰지 마세요.');
             }
         }
-        return send({ ok: true, service: 'cleanchecks', version: '0.93', photoStorage: 'local-only' });
+        return send({ ok: true, service: 'cleanchecks', version: '0.94', photoStorage: 'local-only' });
     }
     if (path === '/api/setup' && method === 'POST') {
         const body = await jsonBody(request);

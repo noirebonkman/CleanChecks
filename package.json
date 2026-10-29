@@ -1,13 +1,13 @@
 {
   "name": "lucent-inspection",
   "private": true,
-  "version": "0.93",
+  "version": "0.94",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5179",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5179",
-    "test": "node --max-old-space-size=384 tests/verify-app.mjs",
+    "test": "node --max-old-space-size=384 tests/verify-app.mjs && node tests/deployment-assets.mjs",
     "server:install": "npm --prefix server ci",
     "server:dev": "node tools/start-local-server.mjs",
     "server:test": "npm --prefix server test",

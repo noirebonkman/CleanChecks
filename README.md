@@ -1,4 +1,4 @@
-# CleanChecks v0.93
+# CleanChecks v0.94
 
 Cloudflare Workers + D1 배포 준비본입니다. R2와 서버 사진 저장을 사용하지 않습니다.
 

@@ -16,3 +16,6 @@ server/.test-work/
 
 .server-build/
 server/.dev.vars.*
+
+# TypeScript incremental build cache
+*.tsbuildinfo

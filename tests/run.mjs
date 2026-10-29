@@ -263,6 +263,8 @@ fireEvent.click(screen.getByRole('button',{name:'확인하고 현장 목록 교�
 await waitFor(async()=>assert.equal((await api.load()).directoryDirty,false));
 assert.deepEqual((await api.load()).records,beforeSync);assert.deepEqual((await api.load()).staff,stored.staff);
 globalThis.fetch=realFetch;
+await waitFor(()=>assert(!screen.queryByRole('dialog')));
+cleanup();
 console.log('PASS: explicit replacement of locally edited site list preserves inspections and inspectors');
 const {createCanvas,GlobalFonts,loadImage}=await import('@napi-rs/canvas');
 GlobalFonts.registerFromPath('C:/Windows/Fonts/malgun.ttf','Malgun Gothic');
@@ -337,11 +339,11 @@ dialog=await screen.findByRole('dialog');fireEvent.change(within(dialog).getByLa
 await screen.findByText('첫 자동 점검자님의 현장 점검을 확인하세요.');await waitFor(()=>assert(!screen.queryByRole('dialog')));
 fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));
 await act(async()=>{releaseCatalog()});
-dialog=await screen.findByRole('dialog');assert(within(dialog).getByRole('option',{name:/가상 현장/}));assert.equal(dialog.querySelectorAll('input[type="password"]').length,0);
+dialog=await screen.findByRole('dialog');await act(async()=>{await new Promise(resolve=>requestAnimationFrame(resolve))});assert(within(dialog).getByRole('option',{name:/가상 현장/}));assert.equal(dialog.querySelectorAll('input[type="password"]').length,0);
 assert.equal((await api.load()).sites.length,1);assert.equal((await api.load()).staff[0].name,'첫 자동 점검자');
 fireEvent.click(within(dialog).getByRole('button',{name:'닫기',exact:true}));await waitFor(()=>assert(!screen.queryByRole('dialog')));
 fireEvent.click(screen.getByRole('button',{name:'점검자 추가',exact:true}));dialog=await screen.findByRole('dialog');fireEvent.change(within(dialog).getByLabelText('점검자 이름'),{target:{value:'두번째 자동 점검자'}});fireEvent.submit(dialog.querySelector('form'));
-await screen.findByText('두번째 자동 점검자님의 현장 점검을 확인하세요.');await waitFor(()=>assert(!screen.queryByRole('dialog')));fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));dialog=await screen.findByRole('dialog');assert(within(dialog).getByRole('option',{name:/가상 현장/}));
+await screen.findByText('두번째 자동 점검자님의 현장 점검을 확인하세요.');await waitFor(()=>assert(!screen.queryByRole('dialog')));fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));dialog=await screen.findByRole('dialog');await act(async()=>{await new Promise(resolve=>requestAnimationFrame(resolve))});assert(within(dialog).getByRole('option',{name:/가상 현장/}));
 assert.equal((await api.load()).staff.length,2);assert.equal((await api.load()).sites.length,1);
 console.log('PASS: first device auto-loads public JSON without password; pending new inspection resumes; all new inspectors share sites');
 
