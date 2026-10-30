@@ -6,3 +6,10 @@ private/
 *.settings.json
 .test-work/
 site-directory.enc.json
+
+server/.dev.vars
+server/.dev.vars.*
+server/.wrangler/
+.server-build/
+private/
+*.tsbuildinfo
