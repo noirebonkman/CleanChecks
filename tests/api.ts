@@ -18,3 +18,6 @@ export {BackupForm} from '../src/BackupForm';
 
 export * from '../src/preferences';
 export {AppErrorBoundary} from '../src/AppErrorBoundary';
+
+export { LoginApplication } from '../src/cloud/LoginApplication';
+export { prepareAccountWorkspace } from '../src/cloud/account-workspace';

@@ -61,3 +61,14 @@
 @media(prefers-reduced-motion:reduce){.steps>button i,.question .compact-grades button,.sidebar{transition:none;animation:none}}
 /* The basic-information shortcut stays in the action row, including long site names and enlarged text. */
 .app[data-screen=inspect]:has(.inspection-heading[data-tall=true]) .check-footer .mobile-basic-shortcut{position:static;inset:auto;z-index:auto;background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;width:44px;height:48px}
+
+/* Keep long site names readable on narrow phones instead of squeezing them
+   between Back and the collapsed information control. */
+@media(max-width:760px){
+ .inspection-heading:has(.inspection-information:not([open])){display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+ .inspection-heading:has(.inspection-information:not([open]))>div:first-child{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center}
+ .inspection-heading h1{min-width:0;word-break:keep-all;overflow-wrap:anywhere}
+ .inspection-information:not([open]){justify-self:end;margin:0;max-width:100%}
+ .person>button:first-child{min-width:0}
+ .person>button:first-child>strong{min-width:0;word-break:keep-all;overflow-wrap:anywhere}
+}

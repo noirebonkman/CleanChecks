@@ -1,0 +1,78 @@
+import assert from 'node:assert/strict';
+import { readFileSync, mkdirSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { build } from '../../node_modules/esbuild/lib/main.js';
+import { Miniflare } from 'miniflare';
+mkdirSync('.test-work', { recursive: true });
+await build({entryPoints:['src/worker.ts'],outfile:'.test-work/access-worker.mjs',bundle:true,format:'esm',platform:'browser'});
+const setupToken=randomBytes(32).toString('hex');
+const mf=new Miniflare({modules:true,scriptPath:'.test-work/access-worker.mjs',compatibilityDate:'2026-08-01',d1Databases:{DB:'access-test'},bindings:{APP_DATA_KEY:randomBytes(32).toString('base64'),SETUP_TOKEN:setupToken}});
+const origin='https://example.workers.dev';
+const pass='Owner-test-password-123', temporary='Temporary-test-123', chosen='Personal-test-password-456';
+const db=await mf.getD1Database('DB');
+async function call(path,status,{cookie,method='GET',body}={}) {
+ const response=await mf.dispatchFetch(origin+'/api/'+path,{method,headers:{Origin:origin,...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ const data=await response.json();assert.equal(response.status,status,JSON.stringify(data));return {data,cookie:response.headers.get('set-cookie')?.split(';')[0],header:response.headers.get('set-cookie')};
+}
+try{
+ for(const name of ['0001_initial.sql','0002_account_login.sql'])for(const sql of readFileSync('migrations/'+name,'utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ assert((await call('auth-config',200)).data.setupRequired);
+ await call('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'어드민',password:pass}});
+ const owner=await call('login',200,{method:'POST',body:{username:'ludmin',password:pass,remember:true}});
+ assert(owner.header.includes('Max-Age=2592000'));assert(owner.header.includes('__Host-cleanchecks_session='));
+ const ownerId=owner.data.user.id;
+ const expiry=(await db.prepare('SELECT expires_at FROM sessions WHERE account_id=?').bind(ownerId).first()).expires_at;
+ assert(Math.abs(expiry-Date.now()-30*86400000)<5000);
+ await call('session',200,{cookie:owner.cookie});
+ assert.equal((await db.prepare('SELECT expires_at FROM sessions WHERE account_id=?').bind(ownerId).first()).expires_at,expiry);
+ console.log('PASS: remembered session expires after fixed 30 days; activity never extends it');
+ for(const [username,role]of [['worker','inspector'],['manager','admin']]){
+  await call('accounts',201,{method:'POST',cookie:owner.cookie,body:{username,name:username,password:temporary,role}});
+  const first=await call('login',200,{method:'POST',body:{username,password:temporary}});
+  assert(!first.header.includes('Max-Age'));assert(first.data.user.mustChangePassword);
+  await call('records',403,{cookie:first.cookie});await call('people',403,{cookie:first.cookie});
+  await call('password',400,{method:'POST',cookie:first.cookie,body:{current:temporary,password:temporary}});
+  await call('password',200,{method:'POST',cookie:first.cookie,body:{current:temporary,password:chosen}});
+  await call('session',401,{cookie:first.cookie});
+ }
+ console.log('PASS: session cookies without remember; temporary passwords block all work until changed and revoke old sessions');
+ const worker=await call('login',200,{method:'POST',body:{username:'worker',password:chosen}});
+ const manager=await call('login',200,{method:'POST',body:{username:'manager',password:chosen}});
+ await call('people',403,{cookie:worker.cookie});await call('accounts',403,{cookie:worker.cookie});
+ assert.equal((await call('people',200,{cookie:manager.cookie})).data.users.length,3);
+ await call('accounts/'+manager.data.user.id,403,{method:'PATCH',cookie:worker.cookie,body:{role:'admin'}});
+ await call('accounts/'+worker.data.user.id,403,{method:'PATCH',cookie:manager.cookie,body:{role:'admin'}});
+ await call('accounts/'+manager.data.user.id,200,{method:'PATCH',cookie:owner.cookie,body:{role:'inspector',reason:'권한 회수'}});
+ await call('session',401,{cookie:manager.cookie});
+ console.log('PASS: only owner promotes/demotes; permission changes revoke sessions immediately');
+ const site={id:'site',name:'현장',zone:'구역',address:'주소',priority:'',cycle:'',inactive:false};
+ await call('sites/site',403,{method:'PUT',cookie:worker.cookie,body:{site,revision:0}});
+ await call('sites/site',200,{method:'PUT',cookie:owner.cookie,body:{site,revision:0}});
+ await call('sites/site',200,{method:'PUT',cookie:owner.cookie,body:{site:{...site,inactive:true},revision:1}});
+ assert((await call('sites',200,{cookie:worker.cookie})).data.sites[0].site.inactive);
+ const record={id:'record',site,date:'2026-10-30T12:00',type:'',cycle:'',technician:'',answers:{},rating:'',issues:'원문',action:'',assignee:'',due:'',actionState:'',notes:'',updated:new Date().toISOString(),photos:[],status:'draft',history:[]};
+ await call('records/record',200,{method:'PUT',cookie:worker.cookie,body:{record,revision:0}});
+ assert.equal((await call('records',200,{cookie:owner.cookie})).data.records.length,0);
+ assert.equal((await call('admin/records',200,{cookie:owner.cookie})).data.records.length,1);
+ await call('records/record',409,{method:'PUT',cookie:owner.cookie,body:{record:{...record,issues:'변조'},revision:1}});
+ await call('records/record',403,{method:'DELETE',cookie:worker.cookie,body:{revision:1}});
+ await call('owner/records/record',403,{method:'DELETE',cookie:owner.cookie,body:{revision:1,reason:'실수',password:'wrong'}});
+ await call('owner/records/record',200,{method:'DELETE',cookie:owner.cookie,body:{revision:1,reason:'실수',password:pass}});
+ assert.equal((await call('owner/trash',200,{cookie:owner.cookie})).data.records[0].record.issues,'원문');
+ await call('owner/restore/record',403,{method:'POST',cookie:worker.cookie,body:{revision:2,password:chosen}});
+ await call('owner/restore/record',200,{method:'POST',cookie:owner.cookie,body:{revision:2,password:pass}});
+ assert.equal((await call('records',200,{cookie:worker.cookie})).data.records[0].record.issues,'원문');
+ await call('owner/restore/record',409,{method:'POST',cookie:owner.cookie,body:{revision:2,password:pass}});
+ console.log('PASS: retired sites preserved; cross-user edits denied; owner-only reauthenticated delete and version-safe restoration');
+ await call('accounts/'+worker.data.user.id,200,{method:'PATCH',cookie:owner.cookie,body:{password:temporary,reason:'분실'}});
+ await call('session',401,{cookie:worker.cookie});
+ const reset=await call('login',200,{method:'POST',body:{username:'worker',password:temporary}});
+ assert(reset.data.user.mustChangePassword);await call('records',403,{cookie:reset.cookie});
+ await db.prepare('UPDATE accounts SET temporary_expires_at=? WHERE id=?').bind(Date.now()-1,worker.data.user.id).run();
+ await call('login',401,{method:'POST',body:{username:'worker',password:temporary}});
+ await db.prepare('UPDATE sessions SET expires_at=? WHERE account_id=?').bind(Date.now()-1,ownerId).run();
+ await call('session',401,{cookie:owner.cookie});
+ await call('login',400,{method:'POST',body:{username:"' OR 1=1 --",password:chosen}});
+ assert.equal((await db.prepare('SELECT COUNT(*) AS count FROM accounts').first()).count,3);
+ console.log('PASS: reset revokes sessions and forces change; expired temporary passwords/sessions and SQL injection rejected');
+}finally{await mf.dispose();}

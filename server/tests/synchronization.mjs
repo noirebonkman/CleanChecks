@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+import {readFileSync,mkdirSync} from 'node:fs';
+import {randomBytes} from 'node:crypto';
+import {resolve} from 'node:path';
+import {Miniflare} from 'miniflare';
+import {build} from '../../node_modules/esbuild/lib/main.js';
+mkdirSync('.test-work',{recursive:true});
+await build({entryPoints:['src/worker.ts'],outfile:'.test-work/worker-sync.mjs',bundle:true,format:'esm',platform:'browser'});
+await build({entryPoints:['../src/cloud/synchronization.ts'],outfile:'.test-work/synchronization.mjs',bundle:true,format:'esm',platform:'browser'});
+const {synchronizeCloud,resolveCloudConflict}=await import('../.test-work/synchronization.mjs');
+const setupToken=randomBytes(32).toString('hex');
+const mf=new Miniflare({modules:true,scriptPath:'.test-work/worker-sync.mjs',compatibilityDate:'2026-08-01',d1Databases:{DB:'sync-test'},bindings:{APP_DATA_KEY:randomBytes(32).toString('base64'),SETUP_TOKEN:setupToken}});
+const realFetch=globalThis.fetch,realReader=globalThis.FileReader,origin='http://127.0.0.1:8787';
+try{
+ const db=await mf.getD1Database('DB');
+ for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ const send=(path,body)=>mf.dispatchFetch(origin+'/api/'+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+ assert.equal((await send('setup',{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'})).status,201);
+ const ownerLogin=await send('login',{username:'ludmin',password:'Strong-password-123'}),ownerCookie=ownerLogin.headers.get('set-cookie').split(';')[0];
+ const created=await mf.dispatchFetch(origin+'/api/accounts',{method:'POST',headers:{Origin:origin,Cookie:ownerCookie,'Content-Type':'application/json'},body:JSON.stringify({username:'sync-inspector',name:'점검자',password:'Inspector-password-123'})});
+ assert.equal(created.status,201);
+ await db.prepare('UPDATE accounts SET must_change_password=0,temporary_expires_at=NULL').run();
+ const login=await send('login',{username:'sync-inspector',password:'Inspector-password-123'}),cookie=login.headers.get('set-cookie').split(';')[0],user=(await login.json()).user;
+ globalThis.fetch=(input,options={})=>String(input).startsWith('data:')?realFetch(input,options):mf.dispatchFetch(origin+input,{...options,headers:{...options.headers,Origin:origin,Cookie:cookie}});
+ globalThis.FileReader=class{
+  readAsDataURL(blob){blob.arrayBuffer().then(buffer=>{this.result='data:'+blob.type+';base64,'+Buffer.from(buffer).toString('base64');this.onload?.();}).catch(error=>this.onerror?.(error));}
+ };
+ const site={id:'site-sync',name:'동기화 현장',zone:'구역',address:'주소',priority:'',cycle:''};
+ const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6tGQAAAAASUVORK5CYII=';
+ const record={id:'sync-record',staffId:'local-person',site,date:'2026-10-28T15:20',type:'',cycle:'',technician:'',answers:{'0-0':'A'},rating:'',issues:'최초 내용',action:'',assignee:'',due:'',actionState:'',notes:'',photos:[{id:'local-photo',name:'사진.png',data:image}],status:'draft',modified:false,updated:new Date().toISOString(),history:[]};
+ const state=(staffId)=>({version:1,staff:[],sites:[site],records:[],cloud:{userId:user.id,staffId,automatic:false,records:{},photoIds:{}}});
+ let a=state('local-person'),b=state('second-person');
+ a.records=[record,{...record,id:'another-person-record',staffId:'other-person'}];
+ const syncA=()=>synchronizeCloud(user,()=>a,async next=>{a=structuredClone(next);});
+ const syncB=()=>synchronizeCloud(user,()=>b,async next=>{b=structuredClone(next);});
+ let result=await syncA();assert.equal(result.sent,1);
+ assert.equal((await db.prepare('SELECT COUNT(*) AS count FROM inspections').first()).count,1);
+ const stored=(await mf.dispatchFetch(origin+'/api/records',{headers:{Cookie:cookie}}));
+ const storedJson=await stored.json();assert.equal(storedJson.records[0].record.photos.length,0);assert(!JSON.stringify(storedJson).includes('data:image'));
+
+ result=await syncB();assert.equal(result.received,1);assert.equal(b.records[0].staffId,'second-person');assert.equal(b.records[0].photos.length,0);assert.equal(b.records[0].serverPhotoCount,1);assert.equal(a.records[0].photos[0].data,image);
+ console.log('PASS: selected inspector only; photos stay local and a new device receives text records only');
+ b.records[0]={...b.records[0],issues:'서버의 새 내용',updated:'2026-10-28T16:00:00Z'};
+ await syncB();
+ a.records[0]={...a.records[0],issues:'기기의 새 내용',updated:'2026-10-28T16:01:00Z'};
+ result=await syncA();assert.equal(result.conflicts.length,1);assert.equal(a.records[0].issues,'기기의 새 내용');
+ assert.equal(b.records[0].issues,'서버의 새 내용');
+ console.log('PASS: cross-device editing preserves both versions without silent overwrite');
+ await resolveCloudConflict('sync-record','server',user,()=>a,async next=>{a=structuredClone(next);});
+ assert.equal(a.records.find(record=>record.id==='sync-record').issues,'서버의 새 내용');assert.equal(a.records.find(record=>record.id==='sync-record').photos[0].data,image);
+ b.records[0]={...b.records[0],issues:'두 번째 서버 수정',updated:'2026-10-28T16:02:00Z'};await syncB();
+ a.records=a.records.map(record=>record.id==='sync-record'?{...record,issues:'기기에서 유지할 내용',updated:'2026-10-28T16:03:00Z'}:record);assert.equal((await syncA()).conflicts.length,1);
+ await resolveCloudConflict('sync-record','device',user,()=>a,async next=>{a=structuredClone(next);});
+ assert.equal((await syncA()).sent,1);await syncB();assert.equal(b.records[0].issues,'기기에서 유지할 내용');
+ console.log('PASS: explicit server/device conflict resolution and subsequent synchronization');
+ await mf.dispatchFetch(origin+'/api/owner/records/sync-record',{method:'DELETE',headers:{Origin:origin,Cookie:ownerCookie,'Content-Type':'application/json'},body:JSON.stringify({revision:b.cloud.records['sync-record'].revision,reason:'서버 삭제 테스트',password:'Strong-password-123'})});result=await syncB();assert.equal(result.received,1);
+ const deleted=(await db.prepare('SELECT deleted FROM inspections').first());assert.equal(deleted.deleted,1);
+ console.log('PASS: local record deletion is synchronized as a server tombstone');
+ const before=JSON.stringify(a);
+ globalThis.fetch=()=>Promise.reject(new Error('offline'));
+ await assert.rejects(syncA,/offline/);assert.equal(JSON.stringify(a),before);
+ console.log('PASS: offline failure preserves all existing local records');
+}finally{globalThis.fetch=realFetch;globalThis.FileReader=realReader;await mf.dispose();}
