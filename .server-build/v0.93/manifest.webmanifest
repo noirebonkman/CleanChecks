@@ -1,1 +1,0 @@
-{"name":"루센트 현장점검","short_name":"현장점검","description":"기기에 저장하는 현장 관리 점검표","start_url":"./","display":"standalone","background_color":"#ffffff","theme_color":"#087880","lang":"ko","scope":"./","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}
