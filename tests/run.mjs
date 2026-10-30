@@ -3,6 +3,14 @@ import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {build} from 'esbuild';
 import {JSDOM} from 'jsdom';
 import 'fake-indexeddb/auto';
+// Close browser-style channels when this Node test run finishes.
+const testChannels = new Set();
+const OriginalBroadcastChannel = globalThis.BroadcastChannel;
+if (OriginalBroadcastChannel) {
+ globalThis.BroadcastChannel = class extends OriginalBroadcastChannel {
+  constructor(name) { super(name); testChannels.add(this); }
+ };
+}
 const dom=new JSDOM('<!doctype html><html><body></body></html>',{url:'https://example.test/CleanChecks/',pretendToBeVisual:true});
 for(const key of ['window','document','localStorage','HTMLElement','Element','Node','Event','MouseEvent','CustomEvent','MutationObserver','FormData','getComputedStyle'])globalThis[key]=key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key];
 globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);globalThis.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);globalThis.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});dom.window.scrollTo=()=>{};dom.window.HTMLElement.prototype.scrollIntoView=()=>{};globalThis.IS_REACT_ACT_ENVIRONMENT=true;
@@ -250,11 +258,14 @@ fireEvent.click(screen.getByRole('button',{name:'설정',exact:true}));
 await screen.findByText('관리자가 수정한 목록이 있어 자동 갱신을 보류했습니다.');
 fireEvent.click(screen.getByRole('button',{name:'지금 목록 새로고침',exact:true}));
 await screen.findByText('공유 현장 목록으로 교체할까요?');
+await act(async()=>{await new Promise(resolve=>requestAnimationFrame(resolve))});
 assert.equal((await api.load()).directoryDirty,true);
 fireEvent.click(screen.getByRole('button',{name:'확인하고 현장 목록 교체'}));
 await waitFor(async()=>assert.equal((await api.load()).directoryDirty,false));
 assert.deepEqual((await api.load()).records,beforeSync);assert.deepEqual((await api.load()).staff,stored.staff);
 globalThis.fetch=realFetch;
+await waitFor(()=>assert(!screen.queryByRole('dialog')));
+cleanup();
 console.log('PASS: explicit replacement of locally edited site list preserves inspections and inspectors');
 const {createCanvas,GlobalFonts,loadImage}=await import('@napi-rs/canvas');
 GlobalFonts.registerFromPath('C:/Windows/Fonts/malgun.ttf','Malgun Gothic');
@@ -322,18 +333,18 @@ const autoCatalog=await api.encodeDirectory({...stored,sites:[site]});
 assert.equal((await api.decodeDirectory(autoCatalog)).sites[0].id,site.id);
 assert.equal(JSON.parse(autoCatalog).staff.length,0);
 await api.save({...stored,sites:[],staff:[],records:[],sync:undefined,directoryDirty:false});
-let releaseCatalog;globalThis.fetch=()=>new Promise(resolve=>{releaseCatalog=()=>resolve(new Response(autoCatalog))});
+let releaseCatalog;globalThis.fetch=(url)=>String(url).startsWith('/api/')?Promise.resolve(new Response('{}',{status:401})):new Promise(resolve=>{releaseCatalog=()=>resolve(new Response(autoCatalog))});
 render(React.createElement(api.App));await screen.findByRole('heading',{name:'점검 기록'});
 fireEvent.click(screen.getByRole('button',{name:'점검자 추가',exact:true}));
 dialog=await screen.findByRole('dialog');fireEvent.change(within(dialog).getByLabelText('점검자 이름'),{target:{value:'첫 자동 점검자'}});fireEvent.submit(dialog.querySelector('form'));
 await screen.findByText('첫 자동 점검자님의 현장 점검을 확인하세요.');await waitFor(()=>assert(!screen.queryByRole('dialog')));
 fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));
 await act(async()=>{releaseCatalog()});
-dialog=await screen.findByRole('dialog');assert(within(dialog).getByRole('option',{name:/가상 현장/}));assert.equal(dialog.querySelectorAll('input[type="password"]').length,0);
+dialog=await screen.findByRole('dialog');await act(async()=>{await new Promise(resolve=>requestAnimationFrame(resolve))});assert(within(dialog).getByRole('option',{name:/가상 현장/}));assert.equal(dialog.querySelectorAll('input[type="password"]').length,0);
 assert.equal((await api.load()).sites.length,1);assert.equal((await api.load()).staff[0].name,'첫 자동 점검자');
 fireEvent.click(within(dialog).getByRole('button',{name:'닫기',exact:true}));await waitFor(()=>assert(!screen.queryByRole('dialog')));
 fireEvent.click(screen.getByRole('button',{name:'점검자 추가',exact:true}));dialog=await screen.findByRole('dialog');fireEvent.change(within(dialog).getByLabelText('점검자 이름'),{target:{value:'두번째 자동 점검자'}});fireEvent.submit(dialog.querySelector('form'));
-await screen.findByText('두번째 자동 점검자님의 현장 점검을 확인하세요.');await waitFor(()=>assert(!screen.queryByRole('dialog')));fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));dialog=await screen.findByRole('dialog');assert(within(dialog).getByRole('option',{name:/가상 현장/}));
+await screen.findByText('두번째 자동 점검자님의 현장 점검을 확인하세요.');await waitFor(()=>assert(!screen.queryByRole('dialog')));fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));dialog=await screen.findByRole('dialog');await act(async()=>{await new Promise(resolve=>requestAnimationFrame(resolve))});assert(within(dialog).getByRole('option',{name:/가상 현장/}));
 assert.equal((await api.load()).staff.length,2);assert.equal((await api.load()).sites.length,1);
 console.log('PASS: first device auto-loads public JSON without password; pending new inspection resumes; all new inspectors share sites');
 
@@ -482,5 +493,35 @@ globalThis.createImageBitmap=undefined;globalThis.Image=class{width=72;height=36
 URL.createObjectURL=()=> 'blob:decode-fallback';URL.revokeObjectURL=()=>{fallbackRevoked++};
 try{const decodedFallback=await api.decodePhoto(new Blob(['mock'],{type:'image/png'}));assert.equal(decodedFallback.width,72);assert.equal(decodedFallback.height,36);decodedFallback.close();assert.equal(fallbackRevoked,1);}finally{globalThis.Image=oldImageForFallback;globalThis.createImageBitmap=bitmapForFallback;URL.createObjectURL=urlForFallback;URL.revokeObjectURL=revokeForFallback}
 console.log('PASS: restricted theme storage, invalid preference, recoverable render error without deleting data, image decoder fallback and URL cleanup');
+
+cleanup();
+for(const role of ['owner','admin','inspector']){
+ const sessionUser={id:'server-'+role,username:role==='owner'?'ludmin':role,name:'서버 권한 검사',role,active:true};
+ let signedIn=true;
+ globalThis.fetch=async(url,options={})=>{
+  if(String(url)==='/api/session')return new Response(JSON.stringify({user:sessionUser}),{headers:{'Content-Type':'application/json'}});
+  if(String(url)==='/api/logout'){signedIn=false;return new Response('{"ok":true}',{headers:{'Content-Type':'application/json'}});}
+  return new Response('{}',{status:404});
+ };
+ render(React.createElement(api.App));
+ await screen.findByRole('heading',{name:'점검 기록'});
+ fireEvent.click(screen.getAllByRole('button',{name:'설정',exact:true})[0]);
+ await screen.findByText(role==='owner'?'최상위 운영자':role==='admin'?'서버 관리자':'서버 점검자');
+ if(role==='inspector'){
+  assert(!screen.queryByText('관리자 모드'));assert(!screen.queryByText('운영자 전용 관리'));
+  assert(screen.getByLabelText('이 서버 계정에 연결할 기기 점검자'));
+ }else{
+  assert(screen.getByText('관리자 모드'));
+  assert(!screen.queryByLabelText('이 서버 계정에 연결할 기기 점검자'));
+  assert.equal(!!screen.queryByText('운영자 전용 관리'),role==='owner');
+  fireEvent.click(screen.getByRole('button',{name:'관리자 로그아웃',exact:true}));
+  await waitFor(()=>assert(!screen.queryByText('관리자 모드')));assert.equal(signedIn,false);
+ }
+ cleanup();
+}
+console.log('PASS: owner/admin login immediately unlocks management without inspector binding; inspector stays restricted; logout revokes UI authority');
+
 globalThis.fetch=realFetch;rawDb.close();dom.window.close();
+for(const channel of testChannels)channel.close();
+globalThis.BroadcastChannel=OriginalBroadcastChannel;
 

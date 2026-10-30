@@ -8,8 +8,14 @@ private/
 site-directory.enc.json
 
 server/.dev.vars
-server/.dev.vars.*
 server/.wrangler/
+server/.test-work/
+.env
+.env.*
+!.env.example
+
 .server-build/
-private/
+server/.dev.vars.*
+
+# TypeScript incremental build cache
 *.tsbuildinfo

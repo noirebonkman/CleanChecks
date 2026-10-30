@@ -1,3 +1,4 @@
+import type {CloudLink} from './cloud/synchronization';
 export const sections=[
  {title:'바닥 및 출입구',items:['바닥에 먼지·머리카락·이물질이 없음','모서리·벽면 가장자리에 먼지가 쌓이지 않음','얼룩·발자국·끈적임이 남아 있지 않음','바닥 물기·세제 잔여물로 인한 미끄럼 위험이 없음','출입문·유리문·손잡이·매트 주변이 청결함']},
  {title:'화장실',items:['변기 안팎에 오염이 없음','세면대·수전·거울에 물때와 얼룩이 없음','바닥·배수구 주변이 청결하고 배수 상태가 양호함','악취가 없고 휴지통 및 주변이 깨끗함','휴지·비누·핸드타월 등 소모품이 적정하게 비치됨','문손잡이 등 자주 접촉하는 부분이 청결함']},
@@ -10,13 +11,13 @@ export const sections=[
 export const grades=['A','B','C','N/A'] as const;
 export const gradeNames={'A':'양호','B':'개선 필요','C':'불량','N/A':'해당 없음'};
 export type Grade=typeof grades[number];
-export type Site={id:string;name:string;zone:string;address:string;priority:string;cycle:string};
+export type Site={inactive?:boolean;id:string;name:string;zone:string;address:string;priority:string;cycle:string};
 export type Staff={id:string;name:string;salt:string;hash:string;active:boolean};
 export type Photo={id:string;data:string;name:string};
-export type Inspection={id:string;staffId:string;site:Site;date:string;type:string;cycle:string;technician:string;answers:Record<string,Grade>;rating:string;issues:string;action:string;assignee:string;due:string;actionState:string;notes:string;photos:Photo[];status:'draft'|'complete';modified:boolean;updated:string;completed?:string;history:{at:string}[]};
+export type Inspection={serverPhotoCount?:number;id:string;staffId:string;site:Site;date:string;type:string;cycle:string;technician:string;answers:Record<string,Grade>;rating:string;issues:string;action:string;assignee:string;due:string;actionState:string;notes:string;photos:Photo[];status:'draft'|'complete';modified:boolean;updated:string;completed?:string;history:{at:string}[]};
 export type Cipher={iv:string;data:string};
 export type Sealed=Cipher&{key:string};
-export type State={version:1;installId:string;staff:Staff[];sites:Site[];records:Inspection[];logs:Sealed[];publicKey:JsonWebKey;admin?:{salt:string;hash:string;privateKey:Cipher;recoverySalt:string;recoveryPrivate:Cipher};lastBackup?:string;backups?:Record<string,{at:string;revision:string}>;sync?:{password:string;digest:string;checked:string;published:string};directoryDirty?:boolean};
+export type State={cloud?:CloudLink;version:1;installId:string;staff:Staff[];sites:Site[];records:Inspection[];logs:Sealed[];publicKey:JsonWebKey;admin?:{salt:string;hash:string;privateKey:Cipher;recoverySalt:string;recoveryPrivate:Cipher};lastBackup?:string;backups?:Record<string,{at:string;revision:string}>;sync?:{password:string;digest:string;checked:string;published:string};directoryDirty?:boolean};
 export const uid=()=>crypto.randomUUID();
 export const localDate=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
 export const itemKey=(s:number,i:number)=>`${s}-${i}`;
