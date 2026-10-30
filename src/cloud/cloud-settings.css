@@ -1,0 +1,14 @@
+.cloud-settings{max-width:1100px;margin:1.25rem auto;padding:1.25rem;box-sizing:border-box;width:calc(100% - 2rem)}
+.cloud-status{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap}
+.cloud-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-block:1rem}
+.cloud-actions button{min-height:44px}
+.cloud-form{display:grid;gap:.7rem;margin-block:1rem}
+.cloud-form input,.cloud-form select{width:100%;box-sizing:border-box;min-height:44px}
+.cloud-form label{display:grid;gap:.35rem}
+.cloud-account{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding-block:.6rem;border-bottom:1px solid var(--line,#ddd);flex-wrap:wrap}
+.cloud-record{padding:.75rem 0;border-bottom:1px solid var(--line,#ddd)}
+.cloud-record summary{cursor:pointer;min-height:44px;overflow-wrap:anywhere}
+.cloud-record pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}
+.cloud-error{color:var(--danger,#b42318)}
+.cloud-settings fieldset{min-width:0}
+.cloud-settings button:disabled{opacity:.55;cursor:wait}
