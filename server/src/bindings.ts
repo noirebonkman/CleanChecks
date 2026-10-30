@@ -20,6 +20,8 @@ export interface Database {
 }
 export interface Environment {
     DB: Database;
+    TURNSTILE_SITE_KEY?: string;
+    TURNSTILE_SECRET_KEY?: string;
     ASSETS?: {
         fetch(request: Request): Promise<Response>;
     };
@@ -34,6 +36,9 @@ export type Account = {
     password_hash: string;
     role: 'owner' | 'admin' | 'inspector';
     active: number;
+    must_change_password: number;
+    temporary_expires_at: number | null;
+    session_expires_at?: number;
 };
 export type PublicAccount = {
     id: string;
@@ -41,4 +46,5 @@ export type PublicAccount = {
     name: string;
     role: 'owner' | 'admin' | 'inspector';
     active: boolean;
+    mustChangePassword?: boolean;
 };

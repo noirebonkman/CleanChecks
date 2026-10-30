@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { build } from '../../node_modules/esbuild/lib/main.js';
+await build({entryPoints:['src/login-protection.ts'],outfile:'.test-work/login-protection.mjs',bundle:true,format:'esm',platform:'node'});
+const {verifyChallenge,checkLoginBurst}=await import('../.test-work/login-protection.mjs');
+const request=new Request('https://cleanchecks.example.workers.dev/api/login');
+const env={TURNSTILE_SITE_KEY:'public-site-key',TURNSTILE_SECRET_KEY:'private-secret'};
+const original=globalThis.fetch;
+try{
+ await verifyChallenge(request,'',{});
+ await verifyChallenge(new Request('http://127.0.0.1:8787/api/login'),'',{TURNSTILE_SITE_KEY:'production-key'});
+ await assert.rejects(()=>verifyChallenge(request,'token',{TURNSTILE_SITE_KEY:'only-public'}),error=>error.status===503);
+ await assert.rejects(()=>verifyChallenge(request,'',env),error=>error.status===400);
+ let submitted;
+ globalThis.fetch=async(url,options)=>{submitted=options.body;return Response.json({success:true,hostname:'cleanchecks.example.workers.dev',action:'login'});};
+ await verifyChallenge(request,'single-use-token',env);
+ assert.equal(submitted.get('secret'),'private-secret');assert.equal(submitted.get('response'),'single-use-token');assert(!submitted.has('remoteip'));
+ globalThis.fetch=async()=>Response.json({success:true,hostname:'attacker.example',action:'login'});
+ await assert.rejects(()=>verifyChallenge(request,'token',env),error=>error.status===403);
+ globalThis.fetch=async()=>Response.json({success:true,hostname:'cleanchecks.example.workers.dev',action:'other'});
+ await assert.rejects(()=>verifyChallenge(request,'token',env),error=>error.status===403);
+ globalThis.fetch=async()=>Response.json({success:false});
+ await assert.rejects(()=>verifyChallenge(request,'token',env),error=>error.status===403);
+ globalThis.fetch=async()=>{throw Error('network unavailable')};
+ await assert.rejects(()=>verifyChallenge(request,'token',env),error=>error.status===503);
+ let count=0;
+ const database={prepare(){return{bind(){return this},async first(){return{failures:++count}}}}};
+ for(let index=0;index<120;index++)await checkLoginBurst({DB:database});
+ await assert.rejects(()=>checkLoginBurst({DB:database}),error=>error.status===429);
+ console.log('PASS: Turnstile server verification checks hostname/action/token, fails closed on errors and omits IP; login burst limiter rejects excess requests');
+}finally{globalThis.fetch=original;}

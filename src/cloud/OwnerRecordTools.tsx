@@ -1,13 +1,16 @@
+import { historyLabel } from './history-labels';
 import { useState, type FormEvent } from 'react';
 import { post, request, type ServerUser } from './client';
 import { listRemoteRecords, type RemoteRecord } from './synchronization';
 type Event = {
     id: string;
+    actorId?: string;
     at: string;
     action: string;
     targetId: string;
     detail: {
         reason: string;
+        fields?: string[];
         name?: string;
         recordCount?: number;
     };
@@ -41,7 +44,7 @@ export function OwnerRecordTools() {
         const form = event.currentTarget, values = new FormData(form), target = String(values.get('target'));
         await run(async () => {
             const row = rows.find(row => row.id === target);
-            await post('owner/' + kind + '/' + target, { revision: row?.revision, reason: values.get('reason') }, 'DELETE');
+            await post('owner/' + kind + '/' + target, { revision: row?.revision, reason: values.get('reason'), password: values.get('password') }, 'DELETE');
             await refresh();
             form.reset();
             setMessage(kind === 'records' ? '서버 점검 기록을 삭제했습니다.' : '점검자 계정과 해당 계정의 서버 기록을 삭제했습니다.');
@@ -55,12 +58,14 @@ export function OwnerRecordTools() {
   <form className="cloud-form" onSubmit={remove('records')}><fieldset disabled={busy}><legend>서버 점검 기록 삭제</legend>
    <label>삭제할 기록<select name="target" required><option value="">선택하세요</option>{rows.map(row => <option key={row.id} value={row.id}>{users.find(user => user.id === row.ownerId)?.name || row.ownerId} · {row.record?.site.name} · {row.record?.date.replace('T', ' ')}</option>)}</select></label>
    <label>삭제 사유<textarea name="reason" maxLength={1000} required/></label>
+   <label>어드민 비밀번호<input name="password" type="password" autoComplete="current-password" required/></label>
    <label><input type="checkbox" required/>선택한 서버 기록을 삭제하겠습니다.</label><button type="submit">점검 기록 삭제</button></fieldset></form>
   <form className="cloud-form" onSubmit={remove('accounts')}><fieldset disabled={busy}><legend>서버 점검자 삭제</legend>
    <label>삭제할 계정<select name="target" required><option value="">선택하세요</option>{users.filter(user => user.role !== 'owner').map(user => <option key={user.id} value={user.id}>{user.name} ({user.username}) · 기록 {rows.filter(row => row.ownerId === user.id).length}건</option>)}</select></label>
    <label>삭제 사유<textarea name="reason" maxLength={1000} required/></label>
+   <label>어드민 비밀번호<input name="password" type="password" autoComplete="current-password" required/></label>
    <label><input type="checkbox" required/>이 계정의 접속을 해제하고 서버 점검 기록도 함께 삭제하겠습니다.</label><button type="submit">점검자와 서버 기록 삭제</button></fieldset></form>
   <p className="hint">서버에서 삭제한 기록은 다음 동기화 때 기기에도 반영됩니다. 로그아웃한 기기의 로컬 기록을 원격으로 즉시 지우지는 않습니다.</p>
-  {events.map(event => <details className="cloud-record" key={event.id}><summary>{new Date(event.at).toLocaleString('ko-KR')} · {event.action === 'account-deleted' ? '점검자 삭제' : '점검 기록 삭제'}</summary><p>대상: {event.detail.name || event.targetId}</p><p>사유: {event.detail.reason}</p>{event.detail.recordCount !== undefined && <p>삭제 기록: {event.detail.recordCount}건</p>}</details>)}
+  {events.map(event => <details className="cloud-record" key={event.id}><summary>{new Date(event.at).toLocaleString('ko-KR')} · {historyLabel(event.action)}</summary><p>대상: {event.detail.name || users.find(user=>user.id===event.targetId)?.name || event.targetId}</p><p>수행 계정: {users.find(user=>user.id===event.actorId)?.name || event.actorId}</p><p>사유: {event.detail.reason}</p>{event.detail.recordCount !== undefined && <p>삭제 기록: {event.detail.recordCount}건</p>}</details>)}
  </details>;
 }

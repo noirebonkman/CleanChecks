@@ -13,11 +13,12 @@ let passed=0;
 const check=label=>{passed++;console.log('PASS: '+label);};
 const origin='http://127.0.0.1:8787';
 async function call(path,{method='GET',body,cookie,headers={}}={}){
- return mf.dispatchFetch(origin+'/api/'+path,{method,headers:{Origin:origin,...(cookie?{Cookie:cookie}:{}),...(body!==undefined?{'Content-Type':'application/json'}:{}),...headers},...(body!==undefined?{body:JSON.stringify(body)}:{})});
+ return mf.dispatchFetch(origin+'/api/'+path,{method,headers:{Origin:origin,...(cookie?{Cookie:cookie}:{}),...(body!==undefined?{'Content-Type':'application/json'}:{}),...headers},...(body!==undefined?{body:JSON.stringify(method==='DELETE'&&path.startsWith('owner/')?{...body,password:'Strong-password-123'}:body)}:{})});
 }
-async function expect(path,status,options){const response=await call(path,options);const body=await response.json();assert.equal(response.status,status,JSON.stringify(body));return {response,body};}
+async function expect(path,status,options){const response=await call(path,options);const body=await response.json();assert.equal(response.status,status,JSON.stringify(body));if(path==='accounts'&&status===201)await db.prepare('UPDATE accounts SET must_change_password=0,temporary_expires_at=NULL').run();return {response,body};}
 try{
  for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  await expect('records',401);
  await expect('setup',403,{method:'POST',body:{setupToken:'wrong'}});
  await expect('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'}});
@@ -36,8 +37,8 @@ try{
  const cookieOne=loginOne.response.headers.get('set-cookie').split(';')[0],userOne=loginOne.body.user;
  const loginTwo=await expect('login',200,{method:'POST',body:{username:'inspector-two',password:'Inspector-password-123'}});
  const cookieTwo=loginTwo.response.headers.get('set-cookie').split(';')[0];
- await expect('records',403,{cookie:adminCookie});
- await expect('records/fake',403,{method:'PUT',cookie:adminCookie,body:{}});
+ await expect('records',200,{cookie:adminCookie});
+ await expect('records/fake',400,{method:'PUT',cookie:adminCookie,body:{}});
  await expect('accounts',403,{cookie:cookieOne});await expect('audit',403,{cookie:cookieOne});
  check('origin checks and server-enforced administrator permissions');
  const site={id:'site-1',name:'비공개 현장',zone:'구역',address:'비공개 주소 123',priority:'',cycle:''};
@@ -54,7 +55,7 @@ try{
  await expect('records/record-1',200,{method:'PUT',cookie:cookieOne,body:{record,revision:0}});
  await expect('records/record-1',200,{method:'PUT',cookie:cookieOne,body:{record:{...record,issues:'수정 내용'},revision:1}});
  await expect('records/record-1',409,{method:'PUT',cookie:cookieOne,body:{record,revision:1}});
- await expect('records/record-1',409,{method:'DELETE',cookie:cookieTwo,body:{revision:2}});
+ await expect('records/record-1',403,{method:'DELETE',cookie:cookieTwo,body:{revision:2}});
  await expect('records/record-1',400,{method:'PUT',cookie:cookieTwo,body:{record:{...record,photos:[{id:'forbidden-photo',name:'photo'}]},revision:2}});
  assert.equal((await expect('records',200,{cookie:cookieTwo})).body.records.length,0);
  assert.equal((await expect('records',200,{cookie:cookieOne})).body.records[0].revision,2);
@@ -80,7 +81,8 @@ try{
  await expect('owner/history',403,{cookie:ordinaryCookie});
  await expect('accounts',403,{method:'POST',cookie:ordinaryCookie,body:{username:'extra-admin',name:'추가 관리자',password:'Admin-password-123',role:'admin'}});
  check('ludmin-only deletion and private deletion audit; record correction endpoint removed');
- await expect('records/record-1',200,{method:'DELETE',cookie:cookieOne,body:{revision:3}});
+ await expect('records/record-1',403,{method:'DELETE',cookie:cookieOne,body:{revision:3}});
+ await expect('owner/records/record-1',200,{method:'DELETE',cookie:adminCookie,body:{revision:3,reason:'테스트 삭제'}});
  const deleted=(await expect('records',200,{cookie:cookieOne})).body.records.find(row=>row.id==='record-1');assert(deleted.deleted);assert.equal(deleted.revision,4);
  await expect('accounts/'+userOne.id,200,{method:'PATCH',cookie:adminCookie,body:{active:false}});
  await expect('session',401,{cookie:cookieOne});

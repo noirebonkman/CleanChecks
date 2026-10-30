@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+mkdirSync('.test-work',{recursive:true});
+const root=mkdtempSync(resolve('.test-work','config-preservation-'));
+mkdirSync(resolve(root,'tools'));mkdirSync(resolve(root,'server'));
+copyFileSync('tools/update-server-configuration.mjs',resolve(root,'tools/update-server-configuration.mjs'));
+const original={name:'existing-worker',assets:{directory:'../.server-build/v0.94',binding:'ASSETS'},d1_databases:[{binding:'DB',database_name:'existing-db',database_id:'11111111-2222-3333-4444-555555555555'}],vars:{TURNSTILE_SITE_KEY:'keep-public-key'},secrets:{required:['APP_DATA_KEY','SETUP_TOKEN']}};
+writeFileSync(resolve(root,'package.json'),JSON.stringify({version:'0.95'}));
+writeFileSync(resolve(root,'server/wrangler.jsonc'),JSON.stringify(original));
+execFileSync(process.execPath,[resolve(root,'tools/update-server-configuration.mjs')],{stdio:'pipe'});
+const result=JSON.parse(readFileSync(resolve(root,'server/wrangler.jsonc'),'utf8'));
+assert.deepEqual(result,{...original,assets:{...original.assets,directory:'../.server-build/v0.95'}});
+writeFileSync(resolve(root,'server/wrangler.jsonc'),JSON.stringify({...original,assets:{directory:'../../private'}}));
+assert.throws(()=>execFileSync(process.execPath,[resolve(root,'tools/update-server-configuration.mjs')],{stdio:'pipe'}));
+console.log('PASS: version update preserves deployed D1 ID, Worker name, public configuration and required secrets; custom paths are never overwritten');

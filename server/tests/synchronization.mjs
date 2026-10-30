@@ -14,11 +14,13 @@ const realFetch=globalThis.fetch,realReader=globalThis.FileReader,origin='http:/
 try{
  const db=await mf.getD1Database('DB');
  for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  const send=(path,body)=>mf.dispatchFetch(origin+'/api/'+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
  assert.equal((await send('setup',{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'})).status,201);
  const ownerLogin=await send('login',{username:'ludmin',password:'Strong-password-123'}),ownerCookie=ownerLogin.headers.get('set-cookie').split(';')[0];
  const created=await mf.dispatchFetch(origin+'/api/accounts',{method:'POST',headers:{Origin:origin,Cookie:ownerCookie,'Content-Type':'application/json'},body:JSON.stringify({username:'sync-inspector',name:'점검자',password:'Inspector-password-123'})});
  assert.equal(created.status,201);
+ await db.prepare('UPDATE accounts SET must_change_password=0,temporary_expires_at=NULL').run();
  const login=await send('login',{username:'sync-inspector',password:'Inspector-password-123'}),cookie=login.headers.get('set-cookie').split(';')[0],user=(await login.json()).user;
  globalThis.fetch=(input,options={})=>String(input).startsWith('data:')?realFetch(input,options):mf.dispatchFetch(origin+input,{...options,headers:{...options.headers,Origin:origin,Cookie:cookie}});
  globalThis.FileReader=class{
@@ -52,7 +54,7 @@ try{
  await resolveCloudConflict('sync-record','device',user,()=>a,async next=>{a=structuredClone(next);});
  assert.equal((await syncA()).sent,1);await syncB();assert.equal(b.records[0].issues,'기기에서 유지할 내용');
  console.log('PASS: explicit server/device conflict resolution and subsequent synchronization');
- b.records=[];result=await syncB();assert.equal(result.sent,1);
+ await mf.dispatchFetch(origin+'/api/owner/records/sync-record',{method:'DELETE',headers:{Origin:origin,Cookie:ownerCookie,'Content-Type':'application/json'},body:JSON.stringify({revision:b.cloud.records['sync-record'].revision,reason:'서버 삭제 테스트',password:'Strong-password-123'})});result=await syncB();assert.equal(result.received,1);
  const deleted=(await db.prepare('SELECT deleted FROM inspections').first());assert.equal(deleted.deleted,1);
  console.log('PASS: local record deletion is synchronized as a server tombstone');
  const before=JSON.stringify(a);

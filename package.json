@@ -1,19 +1,20 @@
 {
   "name": "lucent-inspection",
   "private": true,
-  "version": "0.94",
+  "version": "0.95",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5179",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5179",
-    "test": "node --max-old-space-size=384 tests/verify-app.mjs && node tests/deployment-assets.mjs",
+    "test": "node --max-old-space-size=384 tests/verify-app.mjs && node tests/deployment-assets.mjs && node --max-old-space-size=384 tests/access-ui.mjs && node tests/server-configuration.mjs",
     "server:install": "npm --prefix server ci",
     "server:dev": "node tools/start-local-server.mjs",
     "server:test": "npm --prefix server test",
-    "server:deploy": "npm run server:build && node tools/check-server-deployment.mjs && npm --prefix server run deploy",
-    "server:build": "npm run build && node tools/prepare-server-assets.mjs",
-    "server:check": "node tools/check-server-deployment.mjs --dry-run && npm --prefix server run deploy:check"
+    "server:deploy": "npm run server:update",
+    "server:build": "node tools/update-server-configuration.mjs && npm run build && node tools/prepare-server-assets.mjs",
+    "server:check": "node tools/check-server-deployment.mjs --dry-run && npm --prefix server run deploy:check",
+    "server:update": "npm run server:build && node tools/deploy-server-update.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.11",

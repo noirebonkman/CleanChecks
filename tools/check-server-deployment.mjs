@@ -13,6 +13,7 @@ for (const name of ['APP_DATA_KEY', 'SETUP_TOKEN']) {
     if (!configuration.secrets?.required?.includes(name)) errors.push(name + ' 비밀 설정이 없습니다.');
     if (Object.hasOwn(configuration.vars ?? {}, name)) errors.push('비밀키를 일반 환경 변수에 넣으면 안 됩니다: ' + name);
 }
+if (Object.hasOwn(configuration.vars ?? {}, 'TURNSTILE_SECRET_KEY')) errors.push('Turnstile 비밀키는 Secrets에 등록하세요.');
 if (configuration.observability?.enabled !== false) errors.push('요청 관측 로그 설정을 확인하세요.');
 const database = configuration.d1_databases?.find(item => item.binding === 'DB');
 if (!database) errors.push('DB 연결 설정이 없습니다.');

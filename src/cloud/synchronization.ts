@@ -75,8 +75,6 @@ export async function synchronizeCloud(user: ServerUser, getState: () => State, 
     conflicts: string[];
     conflictIds: string[];
 }> {
-    if (user.role !== 'inspector')
-        throw Error('관리 계정은 점검자 연결이 필요하지 않습니다.');
     const start = getState().cloud;
     if (!start || start.userId !== user.id)
         throw Error('동기화할 점검자를 먼저 연결해 주세요.');

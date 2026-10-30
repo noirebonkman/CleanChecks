@@ -37,6 +37,7 @@ try {
     const wrangler = resolve(server, 'node_modules/wrangler/bin/wrangler.js');
     if (!existsSync(wrangler))
         throw Error('서버 패키지가 없습니다. IntelliJ 터미널에서 npm.cmd run server:install 을 한 번 실행하세요.');
+    await run(resolve(root, 'tools/update-server-configuration.mjs'));
     await run(resolve(root, 'node_modules/typescript/bin/tsc'), ['-b']);
     await run(resolve(root, 'node_modules/vite/bin/vite.js'), ['build']);
     await run(resolve(root, 'tools/prepare-server-assets.mjs'));

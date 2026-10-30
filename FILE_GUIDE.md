@@ -1,4 +1,4 @@
-# CleanChecks 개발 파일 안내 — v0.94
+# CleanChecks 개발 파일 안내 — v0.95
 
 ## IntelliJ에서 열기
 이 폴더의 package.json, src, public, vite.config.ts가 같은 위치에 있어야 합니다.
@@ -25,7 +25,7 @@ GitHub에서 Clone한 CleanChecks 폴더에 개발용 파일을 복사하고 new
 배포 파일 생성 npm run build
 
 dist는 자동으로 만드는 배포 결과입니다. 원본 수정은 src에서 합니다.
-배포 파일은 application-v0.94.js, report-export-v0.94.js처럼 역할과 버전으로 생성됩니다.
+배포 파일은 application-v0.95.js, report-export-v0.95.js처럼 역할과 버전으로 생성됩니다.
 다음 업데이트에서 src/version.ts와 package.json의 버전을 함께 올린 뒤 빌드하세요.
 빌드 후에는 dist 안의 파일을 한 묶음으로 배포하세요. 파일 이름을 따로 고치지 마세요.
 기존 데이터베이스 이름·백업 형식·공통 JSON 경로는 변경하지 않았습니다.
@@ -33,3 +33,14 @@ dist는 자동으로 만드는 배포 결과입니다. 원본 수정은 src에�
 newdev에 커밋하는 것만으로 현재 Pages 배포 브랜치가 바뀌지는 않습니다.
 
 서버 구성과 배포 절차는 SERVER_GUIDE.md를 확인하세요.
+
+## v0.95 로그인·권한 파일
+- src/cloud/LoginApplication.tsx: 로그인 진입, 임시 비밀번호 변경, 세션 확인, 로그아웃
+- src/cloud/account-workspace.ts: 로그인 계정별 로컬 저장 공간과 관리자 조회 데이터
+- src/cloud/ServerPanel.tsx: 자동 전송·충돌 확인, 계정 관리, 어드민 메뉴
+- src/cloud/login-and-access.css: 로그인과 관리 화면 반응형 스타일
+- src/local-storage.ts: 계정별 저장 키와 이전 저장소 보존
+- server/migrations/0002_account_login.sql: 기존 DB를 보존하는 추가 테이블·열
+- server/src/login-protection.ts: 로그인 요청 제한과 Turnstile 서버 검증
+- tools/update-server-configuration.mjs: 기존 D1 ID를 유지한 배포 경로 갱신
+- tools/deploy-server-update.mjs: 실제 배포 전 백업·마이그레이션·업로드

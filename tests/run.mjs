@@ -258,6 +258,7 @@ fireEvent.click(screen.getByRole('button',{name:'설정',exact:true}));
 await screen.findByText('관리자가 수정한 목록이 있어 자동 갱신을 보류했습니다.');
 fireEvent.click(screen.getByRole('button',{name:'지금 목록 새로고침',exact:true}));
 await screen.findByText('공유 현장 목록으로 교체할까요?');
+await act(async()=>{await new Promise(resolve=>requestAnimationFrame(resolve))});
 assert.equal((await api.load()).directoryDirty,true);
 fireEvent.click(screen.getByRole('button',{name:'확인하고 현장 목록 교체'}));
 await waitFor(async()=>assert.equal((await api.load()).directoryDirty,false));

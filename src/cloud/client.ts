@@ -4,6 +4,7 @@ export type ServerUser = {
     name: string;
     role: 'owner' | 'admin' | 'inspector';
     active: boolean;
+    mustChangePassword?: boolean;
 };
 export class ServerError extends Error {
     constructor(public status: number, message: string) { super(message); }

@@ -56,8 +56,8 @@ export function sessionToken(request: Request): string | undefined {
     const name = new URL(request.url).protocol === 'https:' ? '__Host-cleanchecks_session' : 'cleanchecks_session';
     return request.headers.get('Cookie')?.split(';').map(value => value.trim()).find(value => value.startsWith(name + '='))?.slice(name.length + 1);
 }
-export function cookie(token: string, request: Request, maxAge = 43200): string {
+export function cookie(token: string, request: Request, maxAge: number | null = 43200): string {
     const secure = new URL(request.url).protocol === 'https:';
     const name = secure ? '__Host-cleanchecks_session' : 'cleanchecks_session';
-    return name + '=' + token + '; Path=' + (secure ? '/' : '/api') + '; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (secure ? '; Secure' : '');
+    return name + '=' + token + '; Path=' + (secure ? '/' : '/api') + '; HttpOnly; SameSite=Strict' + (maxAge === null ? '' : '; Max-Age=' + maxAge) + (secure ? '; Secure' : '');
 }

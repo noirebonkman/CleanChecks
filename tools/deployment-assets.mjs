@@ -15,7 +15,7 @@ export const securityHeaders = [
     '  Referrer-Policy: no-referrer',
     '  Strict-Transport-Security: max-age=31536000',
     '  Permissions-Policy: camera=(self), microphone=(), geolocation=()',
-    "  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    "  Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
     '', '/index.html', '  Cache-Control: no-cache', '/sw.js', '  Cache-Control: no-cache', '',
 ].join('\n');
 

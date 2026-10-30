@@ -21,7 +21,7 @@ export function site(value: unknown) {
     if (!value || typeof value !== 'object')
         throw new ApiError(400, '현장 정보가 필요합니다.');
     const input = value as Record<string, unknown>;
-    return { id: id(input.id), name: text(input.name, '현장명', 200, true), zone: text(input.zone, '구역', 200), address: text(input.address, '주소', 500, true), priority: text(input.priority, '우선도', 100), cycle: text(input.cycle, '작업주기', 200) };
+    return { id: id(input.id), name: text(input.name, '현장명', 200, true), zone: text(input.zone, '구역', 200), address: text(input.address, '주소', 500, true), priority: text(input.priority, '우선도', 100), cycle: text(input.cycle, '작업주기', 200), inactive: input.inactive === true };
 }
 export function record(value: unknown) {
     if (!value || typeof value !== 'object')
