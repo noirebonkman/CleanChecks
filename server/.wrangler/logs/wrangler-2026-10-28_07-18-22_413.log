@@ -1,0 +1,92 @@
+
+--- 2026-10-28T07:18:22.520Z debug
+🪵  Writing logs to "C:\Users\nesli\IdeaProjects\CleanChecks\server\.wrangler\logs\wrangler-2026-10-28_07-18-22_413.log"
+---
+
+--- 2026-10-28T07:18:22.520Z debug
+.env file not found at "C:\Users\nesli\IdeaProjects\CleanChecks\server\.env". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-10-28T07:18:22.521Z debug
+.env file not found at "C:\Users\nesli\IdeaProjects\CleanChecks\server\.env.local". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-10-28T07:18:22.635Z log
+
+ ⛅️ wrangler 4.154.0
+────────────────────
+---
+
+--- 2026-10-28T07:18:22.636Z log
+Resource location: local 
+
+---
+
+--- 2026-10-28T07:18:22.636Z log
+Use --remote if you want to access the remote instance.
+
+---
+
+--- 2026-10-28T07:18:22.647Z debug
+Metrics dispatcher: Dispatching disabled - would have sent {"deviceId":"f72877f2-ac5d-4601-a885-5550481a0e8b","event":"wrangler command started","timestamp":1793171902647,"properties":{"amplitude_session_id":1793171902640,"amplitude_event_id":0,"wranglerVersion":"4.154.0","wranglerMajorVersion":4,"wranglerMinorVersion":154,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home","nodeVersion":24,"isFirstUsage":true,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":true,"agent":null,"argsUsed":["local","persistTo"],"argsCombination":"local, persistTo","sanitizedCommand":"d1 migrations apply","sanitizedArgs":{"local":true},"currentAgentSkillsInstalled":null}}.
+---
+
+--- 2026-10-28T07:18:22.647Z log
+🌀 Executing on local database cleanchecks (00000000-0000-0000-0000-000000000000) from .wrangler\state-v092\v3\d1:
+---
+
+--- 2026-10-28T07:18:22.647Z log
+🌀 To execute on your remote database, add a --remote flag to your wrangler command.
+---
+
+--- 2026-10-28T07:18:23.041Z log
+🚣 1 command executed successfully.
+---
+
+--- 2026-10-28T07:18:23.041Z log
+🌀 Executing on local database cleanchecks (00000000-0000-0000-0000-000000000000) from .wrangler\state-v092\v3\d1:
+---
+
+--- 2026-10-28T07:18:23.041Z log
+🌀 To execute on your remote database, add a --remote flag to your wrangler command.
+---
+
+--- 2026-10-28T07:18:23.259Z log
+🚣 1 command executed successfully.
+---
+
+--- 2026-10-28T07:18:23.260Z log
+Migrations to be applied:
+---
+
+--- 2026-10-28T07:18:23.263Z log
+┌──────────────────┐
+│ name             │
+├──────────────────┤
+│ 0001_initial.sql │
+└──────────────────┘
+---
+
+--- 2026-10-28T07:19:40.311Z log
+🌀 Executing on local database cleanchecks (00000000-0000-0000-0000-000000000000) from .wrangler\state-v092\v3\d1:
+---
+
+--- 2026-10-28T07:19:40.311Z log
+🌀 To execute on your remote database, add a --remote flag to your wrangler command.
+---
+
+--- 2026-10-28T07:19:40.552Z log
+🚣 14 commands executed successfully.
+---
+
+--- 2026-10-28T07:19:40.553Z log
+┌──────────────────┬────────┐
+│ name             │ status │
+├──────────────────┼────────┤
+│ 0001_initial.sql │ ✅     │
+└──────────────────┴────────┘
+---
+
+--- 2026-10-28T07:19:40.554Z debug
+Metrics dispatcher: Dispatching disabled - would have sent {"deviceId":"f72877f2-ac5d-4601-a885-5550481a0e8b","event":"wrangler command completed","timestamp":1793171980554,"properties":{"amplitude_session_id":1793171902640,"amplitude_event_id":1,"wranglerVersion":"4.154.0","wranglerMajorVersion":4,"wranglerMinorVersion":154,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home","nodeVersion":24,"isFirstUsage":true,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":true,"agent":null,"argsUsed":["local","persistTo"],"argsCombination":"local, persistTo","sanitizedCommand":"d1 migrations apply","sanitizedArgs":{"local":true},"durationMs":78032,"currentAgentSkillsInstalled":null}}.
+---

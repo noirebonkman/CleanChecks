@@ -1,0 +1,97 @@
+{
+  "version": "0.94",
+  "files": [
+    {
+      "path": "_headers",
+      "sha256": "0e53b9ee06c5f0724fa321666074f7c61d3ed8eeeb2efb25c77338aff5f8a5dc"
+    },
+    {
+      "path": "apple-touch-icon.png",
+      "sha256": "669403b2810aa5a3629d05bcdd7045d1018c5cf52ec34bbceb09049f39ae9b84"
+    },
+    {
+      "path": "assets/apple-touch-icon-v0.94.png",
+      "sha256": "669403b2810aa5a3629d05bcdd7045d1018c5cf52ec34bbceb09049f39ae9b84"
+    },
+    {
+      "path": "assets/application-v0.94.css",
+      "sha256": "f501189fa95ba7d7becb51ed7985cabad3f06a8e1c81a19aefe086253e3d81b0"
+    },
+    {
+      "path": "assets/application-v0.94.js",
+      "sha256": "88f79edafe56163fbfa33615c6d309bcd4090b191295a158726845b0c7fbe1c3"
+    },
+    {
+      "path": "assets/excel-reader-v0.94.js",
+      "sha256": "855f398e30a2aa18adf8e16a8be541a7ce46ad96bdeffc041fec1caeb1674078"
+    },
+    {
+      "path": "assets/favicon-32-v0.94.png",
+      "sha256": "40783d82f2f80b9b3473e992d4f30c6ac043886506319b75e6de87e3ea322a7b"
+    },
+    {
+      "path": "assets/html-sanitizer-v0.94.js",
+      "sha256": "8e143ee7bcdf076d62676183aacc62568c9adb8042c57d4fef7d62e1ca7c345a"
+    },
+    {
+      "path": "assets/html-to-canvas-v0.94.js",
+      "sha256": "061c08e50c0dc57b8d5e6531f0b8237a52a68b233260d49ab2f2c2906ad112c4"
+    },
+    {
+      "path": "assets/icon-v0.94.svg",
+      "sha256": "457d72c5e07ca7f16438fa4fecf91b8b35bf1a986cd17736d0385c926df74f00"
+    },
+    {
+      "path": "assets/offline-update-v0.94.js",
+      "sha256": "cadd21be4a88598a4dec91a26a025df0a5790ff6baec54a884e401c3f5c95557"
+    },
+    {
+      "path": "assets/pdf-engine-v0.94.js",
+      "sha256": "e8d0cf59b7f8f4e0057be7616c54d7dc5cfc5f3ef348784e8e8e005aba85cdb7"
+    },
+    {
+      "path": "assets/report-export-v0.94.js",
+      "sha256": "f05660340785b71bd7c5504f1ff6d7643941ba6aa117c7d47e602af4eac78acd"
+    },
+    {
+      "path": "assets/zip-archive-v0.94.js",
+      "sha256": "77256d65393d4e920a52a695a816c7a081d2b6e520f9603c3bf367be01b81d7c"
+    },
+    {
+      "path": "favicon-32.png",
+      "sha256": "40783d82f2f80b9b3473e992d4f30c6ac043886506319b75e6de87e3ea322a7b"
+    },
+    {
+      "path": "icon-192.png",
+      "sha256": "8fbdabfb095fe0a14d0ff358df45562ff9ddd0541846aa73ecf73dda1c6f2a91"
+    },
+    {
+      "path": "icon-512.png",
+      "sha256": "b72e22e99f01f026c303871ab5ff71c599408e579a95218e13e65a730feaaeb5"
+    },
+    {
+      "path": "icon.svg",
+      "sha256": "457d72c5e07ca7f16438fa4fecf91b8b35bf1a986cd17736d0385c926df74f00"
+    },
+    {
+      "path": "index.html",
+      "sha256": "6b0f91df21044f40a1dae7b3698e6c062412775fee420d15740d4d1a505ce7b7"
+    },
+    {
+      "path": "logo-black.svg",
+      "sha256": "315dcf320efbc4c415a6709c4a9a15b03b960a388abdeacf1eccd2670c56f5bf"
+    },
+    {
+      "path": "logo-white.svg",
+      "sha256": "5863869befcc2afb2009fc244e873d46ca012f7d2edf85bf2a31e71c5c6cb101"
+    },
+    {
+      "path": "manifest.webmanifest",
+      "sha256": "80705803257525fdfdf849176816006c9103ffad4455a55b9e6b93ab6d2efb05"
+    },
+    {
+      "path": "sw.js",
+      "sha256": "647fcec362b8af0449f472dffbe2eec3686948cf0316d99d90862b066e8ae8c9"
+    }
+  ]
+}

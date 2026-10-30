@@ -1,0 +1,6 @@
+{
+  "debugPortAddress": "127.0.0.1:62193",
+  "defaultEntrypointService": "assets:rpc-proxy:cleanchecks",
+  "userWorkerService": "core:user:cleanchecks",
+  "instanceId": "1a46cde4-ecf9-4dd9-8636-1ef441bda6f8"
+}
