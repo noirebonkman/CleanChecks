@@ -7,6 +7,7 @@ import './theme-and-components.css';
 import './record-journal.css';
 import './mobile-inspection.css';
 import './inspection-workspace.css';
+import './responsive-layout.css';
 
 import {registerSW} from 'virtual:pwa-register';
 createRoot(document.getElementById('root')!).render(<AppErrorBoundary><LoginApplication/></AppErrorBoundary>);

@@ -1,0 +1,230 @@
+/* Shared page geometry. Only the application column owns horizontal spacing. */
+.app > main { min-width: 0; }
+.app > main > .content {
+    width: 100%;
+    min-width: 0;
+    margin: 0 auto;
+}
+.app .page-heading, .app .journal-heading {
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.app .page-heading > div, .app .journal-heading > div { min-width: 0; }
+.app .page-heading h1, .app .journal-heading h1, .app .topbar strong {
+    overflow-wrap: anywhere;
+}
+.app .server-settings {
+    width: 100%;
+    max-width: 62rem;
+    padding: 1.75rem 2rem 2.5rem;
+}
+.app .server-settings > .page-heading { margin: 0 0 1.5rem; }
+.app .settings-account { min-width: 0; width: 100%; }
+.app .settings-account > .cloud-settings {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 1.5rem 0;
+    box-sizing: border-box;
+}
+.app .server-settings .setting-card { width: 100%; min-width: 0; }
+.app .account-sync {
+    min-width: 0;
+    flex-shrink: 0;
+    align-items: center;
+    gap: .5rem 1rem;
+    padding: .65rem 1.25rem;
+    line-height: 1.6;
+}
+.app .account-sync > span { min-width: 0; overflow-wrap: anywhere; }
+.app .account-sync small { font-size: inherit; }
+.app .settings-account > .account-sync {
+    padding: .75rem 1rem;
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--line);
+    border-radius: .65rem;
+    background: var(--soft);
+}
+
+/* Account controls must not depend on styles for the unrelated modal forms. */
+.app .cloud-settings { min-width: 0; overflow-wrap: anywhere; }
+.app .cloud-settings h2 { margin-bottom: .6rem; }
+.app .cloud-settings h2:not(:first-child) { margin-top: 1.75rem; }
+.app .cloud-settings .cloud-form {
+    display: grid;
+    gap: .9rem;
+    width: 100%;
+    min-width: 0;
+    margin: 1rem 0;
+}
+.app .cloud-settings fieldset {
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+}
+.app .cloud-form > fieldset {
+    display: grid;
+    gap: .9rem;
+    padding: 0;
+    border: 0;
+}
+.app .cloud-settings legend {
+    max-width: 100%;
+    margin-bottom: .65rem;
+    padding: 0;
+    font-weight: 650;
+    font-size: .9375rem;
+    overflow-wrap: anywhere;
+}
+.app .cloud-settings label {
+    display: grid;
+    min-width: 0;
+    gap: .4rem;
+    margin: 0;
+    font-size: .875rem;
+    font-weight: 600;
+    line-height: 1.6;
+}
+.app .cloud-settings input:not([type="checkbox"]),
+.app .cloud-settings select,
+.app .cloud-settings textarea {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.875rem;
+    padding: .7rem .8rem;
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--line);
+    border-radius: .5rem;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 400;
+}
+.app .cloud-settings input::placeholder,
+.app .cloud-settings textarea::placeholder { color: var(--muted); opacity: 1; }
+.app .cloud-settings textarea { resize: vertical; min-height: 6rem; }
+.app .cloud-settings label:has(input[type="checkbox"]) {
+    display: flex;
+    align-items: flex-start;
+    gap: .65rem;
+}
+.app .cloud-settings input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 1.125rem;
+    height: 1.125rem;
+    min-height: 0;
+    margin: .2rem 0 0;
+    accent-color: var(--accent);
+}
+.app .cloud-settings button:not(.setting-row) {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.75rem;
+    padding: .6rem .9rem;
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--line);
+    border-radius: .5rem;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: .875rem;
+    font-weight: 600;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.app .cloud-settings button.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
+}
+.app .cloud-settings button:not(:disabled):hover { background: var(--hover); }
+.app .cloud-settings button.primary:not(:disabled):hover { background: var(--accent); filter: brightness(.94); }
+.app .cloud-settings details > summary {
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: .75rem 0;
+    font-size: .9375rem;
+    font-weight: 650;
+    line-height: 1.6;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+.app .cloud-settings .cloud-account {
+    display: block;
+    min-width: 0;
+    padding: .75rem 0;
+    border-bottom: 1px solid var(--line);
+}
+.app .cloud-account[open] > summary { margin-bottom: .75rem; }
+.app .cloud-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.app .cloud-actions > button { flex: 1 1 12rem; }
+.app .cloud-owner-tools .cloud-form,
+.app .cloud-settings .cloud-record {
+    min-width: 0;
+    padding: 1rem;
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--line);
+    border-radius: .65rem;
+    background: var(--surface);
+}
+.app .cloud-settings .cloud-record + .cloud-record { margin-top: .75rem; }
+.app .cloud-settings dl { margin: .75rem 0; }
+.app .cloud-settings dt { font-weight: 600; }
+.app .cloud-settings dd { margin: .2rem 0 .75rem; color: var(--muted); }
+.app .cloud-settings .permission-form { margin: 1rem 0 0; }
+.app .cloud-settings .permission-form fieldset { padding: 1rem; border-width: 1px;
+    border-style: solid;
+    border-color: var(--line); }
+.app .cloud-settings .permission-row {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) minmax(10rem,1fr);
+    align-items: center;
+    gap: .75rem;
+}
+
+/* Common containment for long site names, large system fonts and narrow screens. */
+.app .topbar { height: auto; min-height: 3.5rem; flex-wrap: wrap; gap: .5rem 1rem; }
+.app .topbar > div, .app .top-person { min-width: 0; }
+.app .top-person { overflow-wrap: anywhere; }
+.app .modal, .app .modal-title, .app .inspection-heading,
+.app .site-management-search, .app .journal-tools { min-width: 0; }
+.app .modal-title { align-items: flex-start; }
+.app .modal-title h2 { min-width: 0; overflow-wrap: anywhere; }
+.app .modal-title > .icon { flex: 0 0 auto; }
+.app .modal label { min-width: 0; }
+.app .modal input, .app .modal select, .app .modal textarea { max-width: 100%; }
+.app .setting-row { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.app .setting-row > svg { flex: 0 0 auto; }
+.app .theme-options { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.app .theme-options button { min-width: 0; flex-wrap: wrap; }
+.app .site-main, .app .record-main, .app .journal-record-copy { min-width: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+    .app .server-settings { padding: 1.25rem 1rem 1.75rem; }
+    .app .server-settings > .page-heading { margin-bottom: 1rem; }
+    .app .settings-account > .cloud-settings { padding: 1.25rem 0; }
+    .app .account-sync { padding: .5rem .9rem; font-size: .75rem; }
+    .app .account-sync > span { flex: 1 1 12rem; }
+    .app .account-sync > button { margin-left: 0; }
+    .app .top-person { max-width: 65%; }
+    .app .cloud-settings .permission-row { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 420px) {
+    .app .cloud-actions { display: grid; grid-template-columns: minmax(0,1fr); }
+    .app .cloud-actions > button { width: 100%; }
+    .app .cloud-settings .permission-form fieldset { padding: .75rem; }
+}
+
+.app .modal label { font-size: .875rem; line-height: 1.6; }
+.app .modal .hint { font-size: .8125rem; }
+.app .record-main p { font-size: .8125rem; }
+.app .record-main small { font-size: .75rem; }

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { hasPermission, type PermissionOverrides } from '../access-control';
 import { AccountPermissionsForm } from './AccountPermissionsForm';
 import { historyLabel } from './history-labels';
@@ -9,7 +10,7 @@ import { synchronizeCloud, resolveCloudConflict, type RemoteRecord } from './syn
 import { OwnerRecordTools } from './OwnerRecordTools';
 import { storageAccount } from '../local-storage';
 
-type Props = { user: ServerUser; visible: boolean; data: State; getState: () => State; save: (value: State) => Promise<void> };
+type Props = { settingsTarget?: HTMLElement | null; user: ServerUser; visible: boolean; data: State; getState: () => State; save: (value: State) => Promise<void> };
 export async function publishSites(sites: State['sites']): Promise<void> {
     const remote = (await request<{ sites: { site: State['sites'][number]; revision: number }[] }>('sites')).sites;
     for (const site of sites) {
@@ -18,7 +19,7 @@ export async function publishSites(sites: State['sites']): Promise<void> {
         await post('sites/' + site.id, { site, revision: prior?.revision || 0 }, 'PUT');
     }
 }
-export function ServerPanel({ user, visible, data, getState, save }: Props) {
+export function ServerPanel({ user, visible, data, getState, save, settingsTarget }: Props) {
     const [status, setStatus] = useState('서버 전송 대기'), [error, setError] = useState('');
     const [busy, setBusy] = useState(false), [tick, setTick] = useState(0);
     const [users, setUsers] = useState<ServerUser[]>([]), [conflicts, setConflicts] = useState<string[]>([]);
@@ -95,7 +96,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
             await refreshUsers(); form.reset(); setStatus('계정을 만들었습니다. 임시 비밀번호는 7일 안에 사용해야 합니다.'); setTick(value => value + 1);
         });
     };
-    return <>
+    const content = <>
         <div className="account-sync" role="status"><span>{status}{lastSynced && <small> · 마지막 저장 확인 {lastSynced}</small>}</span><button className="text-button" disabled={busy} onClick={() => void sync()}>전송 다시 확인</button></div>
         {visible && <section className="setting-card cloud-settings">
             <h2>계정 및 기록 저장</h2><p><strong>{user.name}</strong> · {user.username} · {user.role === 'owner' ? '어드민' : user.role === 'admin' ? '관리자' : '일반 점검자'}</p>
@@ -111,7 +112,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
             {history.map((item, index) => <p key={index}>{new Date(item.at).toLocaleString('ko-KR')} · {historyLabel(item.action)} · {data.records.find(record=>record.id===item.target_id)?.site.name || '계정 작업'}</p>)}
             {hasPermission(user, 'manageUsers') && <>
                 <h2>관리자 메뉴 · 계정 관리</h2>
-                {botConfigured === false && <p className="hint">Turnstile 키가 아직 등록되지 않았습니다. 현재는 서버의 로그인 시도 제한만 적용됩니다.</p>}
+                {user.role === 'owner' && botConfigured === false && <p className="hint">Turnstile 키가 아직 등록되지 않았습니다. 현재는 서버의 로그인 시도 제한만 적용됩니다.</p>}
                 <details><summary>사용자 계정 추가</summary><form className="cloud-form" onSubmit={create}><fieldset disabled={busy}><legend>사용자 계정 추가</legend>
                     <label>아이디<input name="username" autoCapitalize="none" autoComplete="off" pattern="[a-z0-9][a-z0-9._-]{2,79}" required/></label>
                     <label>이름<input name="name" maxLength={100} required/></label>
@@ -150,4 +151,6 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
             </>}
         </section>}
     </>;
+    // Keep synchronization mounted while placing all settings in one shared page column.
+    return visible ? settingsTarget ? createPortal(content, settingsTarget) : null : content;
 }
