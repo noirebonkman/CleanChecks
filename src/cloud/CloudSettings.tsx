@@ -103,7 +103,7 @@ export function CloudSettings({ visible, data, getState, save, onSession }: Prop
     if (!visible)
         return null;
     return <section className="setting-card cloud-settings" aria-labelledby="cloud-heading">
-  <h2 id="cloud-heading">서버 저장</h2>
+  <h2 id="cloud-heading">계정 연결 및 기록 저장</h2>
   <p>점검 기록은 서버에 저장하고 사진은 촬영한 기기에만 보관합니다. 어드민·관리자는 점검자 연결 없이 관리 기능을 사용합니다.</p>
   <p className="hint">사진은 다른 기기나 관리자 화면으로 전송되지 않습니다. JPG·PDF 내보내기에는 이 기기의 사진이 포함됩니다.</p>
   {message && <p role="status">{message}</p>}{error && <p role="alert" className="cloud-error">{error}</p>}
@@ -119,18 +119,18 @@ export function CloudSettings({ visible, data, getState, save, onSession }: Prop
    <label>서버 아이디<input name="username" autoComplete="username" required minLength={3}/></label>
    <label>서버 비밀번호<input name="password" type="password" autoComplete="current-password" required/></label>
    <button className="primary" type="submit">서버 로그인</button></fieldset></form>
-   <button type="button" className="secondary" onClick={() => setSetup(value => !value)}>처음 서버를 설정하시나요?</button>
+   <button type="button" className="secondary" onClick={() => setSetup(value => !value)}>최초 어드민 계정 설정</button>
    {setup && <form className="cloud-form" onSubmit={event => {
                     event.preventDefault();
                     const form = event.currentTarget, fields = new FormData(form);
-                    void operation(async () => { await post('setup', { setupToken: fields.get('token'), username: fields.get('username'), name: fields.get('name'), password: fields.get('password') }); setSetup(false); setMessage('관리자 계정이 생성되었습니다. 서버에 로그인해 주세요.'); form.reset(); });
-                }}><fieldset disabled={busy}><legend>최초 관리자 만들기</legend>
-    <p className="hint">초기 설정 코드는 서버의 SETUP_TOKEN입니다. 한 번만 사용할 수 있습니다.</p>
+                    void operation(async () => { await post('setup', { setupToken: fields.get('token'), username: fields.get('username'), name: fields.get('name'), password: fields.get('password') }); setSetup(false); setMessage('어드민 계정을 생성했습니다. 로그인해 주세요.'); form.reset(); });
+                }}><fieldset disabled={busy}><legend>최초 어드민 계정 설정</legend>
+    <p className="hint">서버를 만드는 기능이 아닙니다. 아직 계정이 없는 서버에 어드민 계정을 한 번 등록합니다. 초기 설정 코드는 운영자가 보관한 SETUP_TOKEN입니다.</p>
     <label>초기 설정 코드<input name="token" type="password" autoComplete="off" required minLength={32}/></label>
     <label>운영자 아이디<input name="username" defaultValue="ludmin" readOnly autoComplete="username" pattern="[a-z0-9][a-z0-9._-]{2,79}" required/></label>
     <label>표시할 이름<input name="name" required maxLength={100}/></label>
-    <label>새 비밀번호<input name="password" type="password" autoComplete="new-password" minLength={12} required/></label>
-    <button className="primary" type="submit">최초 관리자 생성</button></fieldset></form>}
+    <label>새 비밀번호<input name="password" type="password" autoComplete="new-password" minLength={10} required/></label>
+    <button className="primary" type="submit">어드민 계정 생성</button></fieldset></form>}
   </> : <>
    <div className="cloud-status"><strong>{user.name}</strong><span>{user.role === 'owner' ? '최상위 운영자' : user.role === 'admin' ? '서버 관리자' : '서버 점검자'}</span></div>
    {user.role === 'inspector' && (!linked ? <div className="cloud-form"><label>이 서버 계정에 연결할 기기 점검자<select value={staffId} onChange={event => setStaffId(event.target.value)}>
@@ -183,7 +183,7 @@ export function CloudSettings({ visible, data, getState, save, onSession }: Prop
                 }}><fieldset disabled={busy}><legend>서버 점검자 계정 추가</legend>
      <label>로그인 아이디<input name="username" required pattern="[a-z0-9][a-z0-9._-]{2,79}" autoComplete="off"/></label>
      <label>점검자 이름<input name="name" required maxLength={100}/></label>
-     <label>초기 비밀번호<input name="password" required type="password" minLength={12} autoComplete="new-password"/></label>
+     <label>초기 비밀번호<input name="password" required type="password" minLength={10} autoComplete="new-password"/></label>
      {user.role === 'owner' && <label>권한<select name="role"><option value="inspector">점검자</option><option value="admin">일반 관리자</option></select></label>}
      <button type="submit" className="primary">서버 점검자 등록</button></fieldset></form>
     {users.map(person => <div className="cloud-account" key={person.id}><span>{person.name} ({person.username}) · {person.active ? '사용 중' : '비활성'}</span>{person.id !== user.id && person.role === 'inspector' && <button disabled={busy} onClick={() => void operation(async () => {
@@ -198,7 +198,7 @@ export function CloudSettings({ visible, data, getState, save, onSession }: Prop
                     void operation(async () => { await post('accounts/' + fields.get('account'), { password: fields.get('password') }, 'PATCH'); setMessage('비밀번호를 초기화했습니다. 해당 계정은 다시 로그인해야 합니다.'); form.reset(); });
                 }}><fieldset disabled={busy}><legend>점검자 비밀번호 초기화</legend>
      <label>대상 계정<select name="account" required><option value="">목록을 먼저 불러오세요</option>{users.filter(person => person.role === 'inspector').map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
-     <label>새 비밀번호<input type="password" name="password" autoComplete="new-password" minLength={12} required/></label><button type="submit">비밀번호 초기화</button></fieldset></form>
+     <label>새 비밀번호<input type="password" name="password" autoComplete="new-password" minLength={10} required/></label><button type="submit">비밀번호 초기화</button></fieldset></form>
     <form onSubmit={event => {
                     event.preventDefault();
                     void operation(async () => {
@@ -225,7 +225,7 @@ export function CloudSettings({ visible, data, getState, save, onSession }: Prop
                 event.preventDefault();
                 const form = event.currentTarget, fields = new FormData(form);
                 void operation(async () => { await post('password', { current: fields.get('current'), password: fields.get('password') }); setUser(null); onSession(null); setMessage('비밀번호를 변경했습니다. 다시 로그인해 주세요.'); form.reset(); });
-            }}><fieldset disabled={busy}><legend>비밀번호 변경</legend><label>현재 비밀번호<input name="current" type="password" autoComplete="current-password" required/></label><label>새 비밀번호<input name="password" type="password" minLength={12} autoComplete="new-password" required/></label><button type="submit">비밀번호 변경</button></fieldset></form></details>
+            }}><fieldset disabled={busy}><legend>비밀번호 변경</legend><label>현재 비밀번호<input name="current" type="password" autoComplete="current-password" required/></label><label>새 비밀번호<input name="password" type="password" minLength={10} autoComplete="new-password" required/></label><button type="submit">비밀번호 변경</button></fieldset></form></details>
    <button className="secondary" disabled={busy} onClick={() => void operation(async () => { await post('logout', {}); setUser(null); onSession(null); setUsers([]); setLogs([]); setRemoteRecords([]); setMessage('서버에서 로그아웃했습니다. 기기 기록은 유지됩니다.'); })}>서버 로그아웃</button>
   </>}
  </section>;
