@@ -19,6 +19,7 @@ async function expect(path,status,options){const response=await call(path,option
 try{
  for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of readFileSync('migrations/0003_account_permissions.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  await expect('records',401);
  await expect('setup',403,{method:'POST',body:{setupToken:'wrong'}});
  await expect('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'}});

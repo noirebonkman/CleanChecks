@@ -15,6 +15,7 @@ try{
  const db=await mf.getD1Database('DB');
  for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of readFileSync('migrations/0003_account_permissions.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  const send=(path,body)=>mf.dispatchFetch(origin+'/api/'+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
  assert.equal((await send('setup',{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'})).status,201);
  const ownerLogin=await send('login',{username:'ludmin',password:'Strong-password-123'}),ownerCookie=ownerLogin.headers.get('set-cookie').split(';')[0];
@@ -57,6 +58,13 @@ try{
  await mf.dispatchFetch(origin+'/api/owner/records/sync-record',{method:'DELETE',headers:{Origin:origin,Cookie:ownerCookie,'Content-Type':'application/json'},body:JSON.stringify({revision:b.cloud.records['sync-record'].revision,reason:'서버 삭제 테스트',password:'Strong-password-123'})});result=await syncB();assert.equal(result.received,1);
  const deleted=(await db.prepare('SELECT deleted FROM inspections').first());assert.equal(deleted.deleted,1);
  console.log('PASS: local record deletion is synchronized as a server tombstone');
+ const readOnlyUser={...user,permissions:{...user.permissions,writeOwnRecords:false}};
+ let readOnlyState={...a,records:[{...a.records[0],id:'readonly-draft',staffId:user.id}],cloud:{...a.cloud,records:{}}};
+ const readOnlyResult=await synchronizeCloud(readOnlyUser,()=>readOnlyState,async next=>{readOnlyState=structuredClone(next);});
+ assert.equal(readOnlyResult.sent,0);assert.equal(readOnlyState.records[0].id,'readonly-draft');
+ assert.equal((await db.prepare("SELECT COUNT(*) AS count FROM inspections WHERE id='readonly-draft'").first()).count,0);
+ await assert.rejects(()=>resolveCloudConflict('sync-record','device',readOnlyUser,()=>readOnlyState,async next=>{readOnlyState=structuredClone(next);}),/권한/);
+ console.log('PASS: read-only synchronization preserves pending local drafts without uploading them');
  const before=JSON.stringify(a);
  globalThis.fetch=()=>Promise.reject(new Error('offline'));
  await assert.rejects(syncA,/offline/);assert.equal(JSON.stringify(a),before);

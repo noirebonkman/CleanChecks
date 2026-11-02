@@ -1,3 +1,5 @@
+import { hasPermission, type PermissionOverrides } from '../access-control';
+import { AccountPermissionsForm } from './AccountPermissionsForm';
 import { historyLabel } from './history-labels';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { State } from '../inspection-model';
@@ -48,7 +50,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
                 await access.current.save(next);
             };
             const result = await synchronizeCloud(user, () => access.current.getState(), scopedSave);
-            if (user.role !== 'inspector') {
+            if (hasPermission(user, 'viewAllRecords')) {
                 const next = await receiveManagementRecords(user, access.current.getState());
                 await scopedSave(next);
             }
@@ -70,7 +72,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
         return () => { clearInterval(timer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); };
     }, []);
     useEffect(() => {
-        if (!visible || user.role === 'inspector') return;
+        if (!visible || !hasPermission(user, 'manageUsers')) return;
         void run(async () => {
             await refreshUsers();
             const config = await request<{ turnstileSiteKey: string; localDevelopment?: boolean }>('auth-config');
@@ -80,6 +82,11 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
     const changeAccount = (person: ServerUser, patch: Record<string, unknown>) => run(async () => {
         if (!accountReasons[person.id]?.trim()) throw Error('변경 사유를 먼저 입력해 주세요.');
         await post('accounts/' + person.id, { ...patch, reason: accountReasons[person.id] }, 'PATCH'); await refreshUsers(); setTick(value => value + 1);
+    });
+    const changePermissions = (person: ServerUser, permissions: PermissionOverrides) => run(async () => {
+        if (!accountReasons[person.id]?.trim()) throw Error('변경 사유를 먼저 입력해 주세요.');
+        await post('accounts/' + person.id + '/permissions', { permissions, revision: person.permissionRevision || 0, reason: accountReasons[person.id] }, 'PATCH');
+        await refreshUsers(); setStatus('개인별 권한을 저장했습니다. 해당 사용자는 다시 로그인해야 합니다.');
     });
     const create = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault(); const form = event.currentTarget, fields = new FormData(form);
@@ -94,7 +101,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
             <h2>계정 및 기록 저장</h2><p><strong>{user.name}</strong> · {user.username} · {user.role === 'owner' ? '어드민' : user.role === 'admin' ? '관리자' : '일반 점검자'}</p>
             <p className="hint">점검 내용은 로그인한 계정에 저장됩니다. 사진은 촬영한 기기에만 보관됩니다.</p>
             {error && <p className="form-error" role="alert">{error}</p>}
-            {conflicts.map(id => <div key={id} className="cloud-record"><h3>동시 수정: {data.records.find(record => record.id === id)?.site.name || id}</h3><p>개인 백업 후 유지할 내용을 선택하세요.</p>{(['server', 'device'] as const).map(choice => <button key={choice} disabled={busy} onClick={() => void run(async () => { await resolveCloudConflict(id, choice, user, () => access.current.getState(), next => access.current.save(next)); setConflicts(value => value.filter(item => item !== id)); setTick(value => value + 1); })}>{choice === 'server' ? '서버 내용 유지' : '이 기기 내용 유지'}</button>)}</div>)}
+            {conflicts.map(id => <div key={id} className="cloud-record"><h3>동시 수정: {data.records.find(record => record.id === id)?.site.name || id}</h3><p>개인 백업 후 유지할 내용을 선택하세요.</p>{(['server', 'device'] as const).filter(choice => choice === 'server' || hasPermission(user, 'writeOwnRecords')).map(choice => <button key={choice} disabled={busy} onClick={() => void run(async () => { await resolveCloudConflict(id, choice, user, () => access.current.getState(), next => access.current.save(next)); setConflicts(value => value.filter(item => item !== id)); setTick(value => value + 1); })}>{choice === 'server' ? '서버 내용 유지' : '이 기기 내용 유지'}</button>)}</div>)}
             <details><summary>내 비밀번호 변경</summary><form className="cloud-form" onSubmit={event => {
                 event.preventDefault(); const fields = new FormData(event.currentTarget);
                 void run(async () => { if (fields.get('password') !== fields.get('confirm')) throw Error('새 비밀번호가 서로 다릅니다.'); await post('password', { current: fields.get('current'), password: fields.get('password') }); window.dispatchEvent(new Event('cleanchecks:server-logout')); });
@@ -102,7 +109,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
             <button className="setting-row" onClick={() => void run(async () => { setHistory((await request<{ events: Record<string,string>[] }>('my-history')).events); setHistoryLoaded(true); })}>내 변경이력 보기</button>
             {historyLoaded && history.length === 0 && <p className="hint" role="status">표시할 변경이력이 없습니다.</p>}
             {history.map((item, index) => <p key={index}>{new Date(item.at).toLocaleString('ko-KR')} · {historyLabel(item.action)} · {data.records.find(record=>record.id===item.target_id)?.site.name || '계정 작업'}</p>)}
-            {user.role !== 'inspector' && <>
+            {hasPermission(user, 'manageUsers') && <>
                 <h2>관리자 메뉴 · 계정 관리</h2>
                 {botConfigured === false && <p className="hint">Turnstile 키가 아직 등록되지 않았습니다. 현재는 서버의 로그인 시도 제한만 적용됩니다.</p>}
                 <details><summary>사용자 계정 추가</summary><form className="cloud-form" onSubmit={create}><fieldset disabled={busy}><legend>사용자 계정 추가</legend>
@@ -123,7 +130,11 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
                             <label>재발급할 임시 비밀번호<input type="password" name="password" autoComplete="new-password" minLength={10} maxLength={128} placeholder="10자 이상" required/></label><button disabled={busy}>임시 비밀번호로 초기화</button>
                         </form>
                     </>}
-                    {user.role === 'owner' && <button disabled={busy} onClick={() => void changeAccount(person, { role: person.role === 'admin' ? 'inspector' : 'admin' })}>{person.role === 'admin' ? '관리자 권한 회수' : '관리자 권한 부여'}</button>}
+                    {user.role === 'owner' && <>
+                        <p className="hint">등급을 변경하면 개인별 권한은 새 등급의 기본값으로 초기화됩니다. 다른 점검자 기록 수정과 어드민 전용 기능은 허용되지 않습니다.</p>
+                        <button disabled={busy} onClick={() => void changeAccount(person, { role: person.role === 'admin' ? 'inspector' : 'admin' })}>{person.role === 'admin' ? '일반 사용자로 변경' : '관리자로 변경'}</button>
+                        <AccountPermissionsForm key={person.id + ':' + (person.permissionRevision || 0) + ':' + person.role} person={person} disabled={busy} onSave={permissions => changePermissions(person, permissions)}/>
+                    </>}
                 </details>)}
             </>}
             {user.role === 'owner' && <>
