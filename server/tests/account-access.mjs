@@ -8,7 +8,7 @@ await build({entryPoints:['src/worker.ts'],outfile:'.test-work/access-worker.mjs
 const setupToken=randomBytes(32).toString('hex');
 const mf=new Miniflare({modules:true,scriptPath:'.test-work/access-worker.mjs',compatibilityDate:'2026-08-01',d1Databases:{DB:'access-test'},bindings:{APP_DATA_KEY:randomBytes(32).toString('base64'),SETUP_TOKEN:setupToken}});
 const origin='https://example.workers.dev';
-const pass='Owner-test-password-123', temporary='Temporary-test-123', chosen='Personal-test-password-456';
+const pass='Owner12345', temporary='Temp123456', chosen='User123456';
 const db=await mf.getD1Database('DB');
 async function call(path,status,{cookie,method='GET',body}={}) {
  const response=await mf.dispatchFetch(origin+'/api/'+path,{method,headers:{Origin:origin,...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
@@ -17,6 +17,7 @@ async function call(path,status,{cookie,method='GET',body}={}) {
 try{
  for(const name of ['0001_initial.sql','0002_account_login.sql'])for(const sql of readFileSync('migrations/'+name,'utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  assert((await call('auth-config',200)).data.setupRequired);
+ await call('setup',400,{method:'POST',body:{setupToken,username:'ludmin',name:'어드민',password:'Nine12345'}});
  await call('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'어드민',password:pass}});
  const owner=await call('login',200,{method:'POST',body:{username:'ludmin',password:pass,remember:true}});
  assert(owner.header.includes('Max-Age=2592000'));assert(owner.header.includes('__Host-cleanchecks_session='));
@@ -25,6 +26,7 @@ try{
  assert(Math.abs(expiry-Date.now()-30*86400000)<5000);
  await call('session',200,{cookie:owner.cookie});
  assert.equal((await db.prepare('SELECT expires_at FROM sessions WHERE account_id=?').bind(ownerId).first()).expires_at,expiry);
+ console.log('PASS: 9-character setup rejected; 10-character setup, temporary and personal passwords accepted');
  console.log('PASS: remembered session expires after fixed 30 days; activity never extends it');
  for(const [username,role]of [['worker','inspector'],['manager','admin']]){
   await call('accounts',201,{method:'POST',cookie:owner.cookie,body:{username,name:username,password:temporary,role}});

@@ -79,9 +79,9 @@ export function LoginApplication() {
     return <div className="login-shell" data-theme={readTheme()}>
         <main className="login-card" aria-busy={loading || busy}>
             <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
-            <p className="eyebrow">현장점검</p>
-            <h1>{temporaryUser ? '비밀번호 변경' : setup ? '최초 어드민 설정' : '로그인'}</h1>
-            <p>{temporaryUser ? '임시 비밀번호를 본인 비밀번호로 변경해야 사용할 수 있습니다.' : '발급받은 계정으로 로그인해 주세요.'}</p>
+            <p className="eyebrow">LUCENT · 현장점검</p>
+            <h1>{temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 등록' : '로그인'}</h1>
+            <p>{temporaryUser ? '임시 비밀번호를 본인 비밀번호로 변경해야 사용할 수 있습니다.' : setup ? '최초 한 번만 등록합니다. 서버를 새로 만드는 과정이 아닙니다.' : '내 계정으로 점검 기록을 이어가세요.'}</p>
             {loading ? <p role="status">서버 연결을 확인하고 있습니다…</p> : <>
                 {error && <p role="alert" className="form-error">{error}</p>}
                 {message && <p role="status">{message}</p>}
@@ -90,24 +90,24 @@ export function LoginApplication() {
                     <fieldset disabled={busy}>
                         {temporaryUser ? <>
                             <label>임시 비밀번호<input name="current" type="password" autoComplete="current-password" required maxLength={128}/></label>
-                            <label>새 비밀번호<input name="password" type="password" autoComplete="new-password" required minLength={12} maxLength={128}/></label>
-                            <label>새 비밀번호 확인<input name="confirmation" type="password" autoComplete="new-password" required minLength={12} maxLength={128}/></label>
+                            <label>새 비밀번호<input name="password" type="password" autoComplete="new-password" required minLength={10} maxLength={128} placeholder="10자 이상"/></label>
+                            <label>새 비밀번호 확인<input name="confirmation" type="password" autoComplete="new-password" required minLength={10} maxLength={128} placeholder="10자 이상"/></label>
                         </> : setup ? <>
                             <label>초기 설정 코드<input name="setupToken" type="password" autoComplete="off" minLength={32} required/></label>
                             <label>아이디<input value="ludmin" readOnly autoComplete="username"/></label>
                             <label>표시할 이름<input name="name" required maxLength={100}/></label>
-                            <label>비밀번호<input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required/></label>
+                            <label>비밀번호<input name="password" type="password" autoComplete="new-password" minLength={10} maxLength={128} placeholder="10자 이상" required/></label>
                         </> : <>
-                            <label>아이디<input name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={80}/></label>
-                            <label>비밀번호<input name="password" type="password" autoComplete="current-password" required maxLength={128}/></label>
-                            <label className="remember-option"><input type="checkbox" name="remember"/>자동로그인 <small>30일 후 재로그인</small></label>
+                            <label>아이디<input placeholder="발급받은 아이디" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={80}/></label>
+                            <label>비밀번호<input placeholder="비밀번호 입력" name="password" type="password" autoComplete="current-password" required maxLength={128}/></label>
+                            <label className="remember-option"><input type="checkbox" name="remember"/>자동로그인 <small>30일간 로그인 유지</small></label>
                         </>}
                         {!temporaryUser && configuration.turnstileSiteKey && <Turnstile key={challengeVersion} siteKey={configuration.turnstileSiteKey} onToken={setToken} onError={setError}/>}
                         <button className="primary full" disabled={busy || (!temporaryUser && !!configuration.turnstileSiteKey && !token)}>{busy ? '처리 중…' : temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 생성' : '로그인'}</button>
                     </fieldset>
                 </form>}
-                {!temporaryUser && <p className="login-help">비밀번호를 잊으셨나요?<br/>관리자에게 임시 비밀번호 발급을 요청해 주세요.</p>}
-                {configuration?.setupRequired && !temporaryUser && <button className="text-button" onClick={() => { setSetup(value => !value); setError(''); }}>{setup ? '로그인으로 돌아가기' : '처음 서버를 설정하시나요?'}</button>}
+                {!temporaryUser && <aside className="login-help"><strong>비밀번호를 잊으셨나요?</strong><span>관리자에게 임시 비밀번호를 요청해 주세요.</span></aside>}
+                {configuration?.setupRequired && !temporaryUser && <button className="text-button" onClick={() => { setSetup(value => !value); setError(''); }}>{setup ? '로그인으로 돌아가기' : '최초 어드민 계정 등록'}</button>}
                 {temporaryUser && <button className="text-button" onClick={() => void logout().catch(cause => setError(cause.message))}>다른 계정으로 로그인</button>}
             </>}
         </main>

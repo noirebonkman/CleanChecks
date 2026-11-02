@@ -83,14 +83,14 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
     return <>
         <div className="account-sync" role="status"><span>{status}</span><button className="text-button" disabled={busy} onClick={() => void sync()}>전송 다시 확인</button></div>
         {visible && <section className="setting-card cloud-settings">
-            <h2>로그인 계정</h2><p><strong>{user.name}</strong> · {user.username} · {user.role === 'owner' ? '어드민' : user.role === 'admin' ? '관리자' : '일반 점검자'}</p>
-            <p className="hint">서버에는 점검 내용만 저장합니다. 다른 기기에서는 첨부 사진을 볼 수 없습니다.</p>
+            <h2>계정 및 기록 저장</h2><p><strong>{user.name}</strong> · {user.username} · {user.role === 'owner' ? '어드민' : user.role === 'admin' ? '관리자' : '일반 점검자'}</p>
+            <p className="hint">점검 내용은 로그인한 계정에 저장됩니다. 사진은 촬영한 기기에만 보관됩니다.</p>
             {error && <p className="form-error" role="alert">{error}</p>}
             {conflicts.map(id => <div key={id} className="cloud-record"><h3>동시 수정: {data.records.find(record => record.id === id)?.site.name || id}</h3><p>개인 백업 후 유지할 내용을 선택하세요.</p>{(['server', 'device'] as const).map(choice => <button key={choice} disabled={busy} onClick={() => void run(async () => { await resolveCloudConflict(id, choice, user, () => access.current.getState(), next => access.current.save(next)); setConflicts(value => value.filter(item => item !== id)); setTick(value => value + 1); })}>{choice === 'server' ? '서버 내용 유지' : '이 기기 내용 유지'}</button>)}</div>)}
             <details><summary>내 비밀번호 변경</summary><form className="cloud-form" onSubmit={event => {
                 event.preventDefault(); const fields = new FormData(event.currentTarget);
                 void run(async () => { if (fields.get('password') !== fields.get('confirm')) throw Error('새 비밀번호가 서로 다릅니다.'); await post('password', { current: fields.get('current'), password: fields.get('password') }); window.dispatchEvent(new Event('cleanchecks:server-logout')); });
-            }}><label>현재 비밀번호<input name="current" type="password" autoComplete="current-password" required/></label><label>새 비밀번호<input name="password" type="password" autoComplete="new-password" minLength={12} required/></label><label>새 비밀번호 확인<input name="confirm" type="password" autoComplete="new-password" minLength={12} required/></label><button disabled={busy}>변경 후 다시 로그인</button></form></details>
+            }}><label>현재 비밀번호<input name="current" type="password" autoComplete="current-password" required/></label><label>새 비밀번호<input name="password" type="password" autoComplete="new-password" minLength={10} maxLength={128} placeholder="10자 이상" required/></label><label>새 비밀번호 확인<input name="confirm" type="password" autoComplete="new-password" minLength={10} required/></label><button disabled={busy}>변경 후 다시 로그인</button></form></details>
             <button className="setting-row" onClick={() => void run(async () => setHistory((await request<{ events: Record<string,string>[] }>('my-history')).events))}>내 변경이력 보기</button>
             {history.map((item, index) => <p key={index}>{new Date(item.at).toLocaleString('ko-KR')} · {historyLabel(item.action)} · {data.records.find(record=>record.id===item.target_id)?.site.name || '계정 작업'}</p>)}
             {user.role !== 'inspector' && <>
@@ -99,7 +99,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
                 <details><summary>사용자 계정 추가</summary><form className="cloud-form" onSubmit={create}><fieldset disabled={busy}><legend>사용자 계정 추가</legend>
                     <label>아이디<input name="username" autoCapitalize="none" autoComplete="off" pattern="[a-z0-9][a-z0-9._-]{2,79}" required/></label>
                     <label>이름<input name="name" maxLength={100} required/></label>
-                    <label>임시 비밀번호<input name="password" type="password" minLength={12} maxLength={128} autoComplete="new-password" required/></label>
+                    <label>임시 비밀번호<input name="password" type="password" minLength={10} maxLength={128} placeholder="10자 이상" autoComplete="new-password" required/></label>
                     {user.role === 'owner' && <label>계정 권한<select name="role"><option value="inspector">일반 점검자</option><option value="admin">관리자</option></select></label>}
                     <p className="hint">첫 로그인 때 본인 비밀번호로 변경해야 사용할 수 있습니다.</p><button className="primary">계정 생성</button>
                 </fieldset></form></details>
@@ -109,7 +109,7 @@ export function ServerPanel({ user, visible, data, getState, save }: Props) {
                     {(person.role === 'inspector' || user.role === 'owner') && <>
                         <button disabled={busy} onClick={() => void changeAccount(person, { active: !person.active })}>{person.active ? '사용 중지' : '사용 재개'}</button>
                         <form className="cloud-form" onSubmit={event => { event.preventDefault(); const fields = new FormData(event.currentTarget); void changeAccount(person, { password: fields.get('password') }); }}>
-                            <label>재발급할 임시 비밀번호<input type="password" name="password" autoComplete="new-password" minLength={12} maxLength={128} required/></label><button disabled={busy}>임시 비밀번호로 초기화</button>
+                            <label>재발급할 임시 비밀번호<input type="password" name="password" autoComplete="new-password" minLength={10} maxLength={128} placeholder="10자 이상" required/></label><button disabled={busy}>임시 비밀번호로 초기화</button>
                         </form>
                     </>}
                     {user.role === 'owner' && <button disabled={busy} onClick={() => void changeAccount(person, { role: person.role === 'admin' ? 'inspector' : 'admin' })}>{person.role === 'admin' ? '관리자 권한 회수' : '관리자 권한 부여'}</button>}

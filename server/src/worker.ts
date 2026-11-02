@@ -17,8 +17,8 @@ function loginName(value: unknown): string {
 }
 function password(value: unknown): string {
     const result = text(value, '비밀번호', 128, true);
-    if (result.length < 12)
-        throw new ApiError(400, '서버 비밀번호는 12자 이상으로 설정해 주세요.');
+    if (result.length < 10)
+        throw new ApiError(400, '비밀번호는 10자 이상으로 설정해 주세요.');
     return result;
 }
 async function authenticate(request: Request, env: Environment): Promise<Account> {
