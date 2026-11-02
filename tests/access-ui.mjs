@@ -30,6 +30,7 @@ globalThis.fetch=async(url,options={})=>{
  return Response.json({error:'지원하지 않음'},{status:404});
 };
 try{
+ api.publishAppUpdate(async()=>{});
  render(React.createElement(api.LoginApplication));
  await screen.findByRole('heading',{name:'로그인'});
  assert(!screen.queryByRole('button',{name:'새 점검'}));assert(!screen.queryByText('타인 비공개 내용'));
@@ -37,6 +38,7 @@ try{
  fireEvent.change(screen.getByLabelText('비밀번호'),{target:{value:'test-password-123'}});
  fireEvent.click(screen.getByLabelText(/자동로그인/));fireEvent.click(screen.getByRole('button',{name:'로그인',exact:true}));
  await screen.findByRole('heading',{name:'점검 기록'});
+ assert(screen.getByRole('button',{name:'저장 후 새로 열기'}));
  assert.equal(loginPayload.remember,true);
  assert.equal((await api.load()).records.length,0);
  fireEvent.click(screen.getByRole('button',{name:'설정',exact:true}));
@@ -108,6 +110,18 @@ try{
   writeFileSync('.test-work/'+role+'-large-font.html',snapshot);
   cleanup();
  }
+ for(const role of ['owner','inspector']){
+  activeUser={id:'empty-'+role,username:role,name:'첫 사용자',role,active:true};
+  await api.prepareAccountWorkspace(activeUser);let empty=await api.load();
+  await api.save({...empty,sites:[],records:[],cloud:{...empty.cloud,lastSynced:new Date().toISOString()}});
+  render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{}}));
+  await screen.findByRole('heading',{name:'점검 기록'});
+  fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));
+  if(role==='owner')await screen.findByRole('heading',{name:'현장 관리',exact:true});
+  else await screen.findByText('등록된 현장이 없습니다. 관리자에게 현장 등록을 요청해 주세요.');
+  assert.equal((await api.load()).records.length,0);cleanup();
+ }
+ console.log('PASS: empty catalog routes authorized site managers to setup and gives inspectors a clear message without creating records');
  const editablePerson={id:'permission-person',name:'개별 사용자',username:'custom',role:'inspector',active:true};
  let savedPermissions;
  render(React.createElement(api.AccountPermissionsForm,{person:editablePerson,disabled:false,onSave:async values=>{savedPermissions=values;}}));

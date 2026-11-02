@@ -48,6 +48,7 @@ jobs:
           node tests/project-files.mjs
           node tests/client-requests.mjs
           node tests/responsive-layout.mjs
+          node tests/app-updates.mjs
       - name: Server tests
         run: npm run server:test
       - name: Build and dry run
