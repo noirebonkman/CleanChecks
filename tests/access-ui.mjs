@@ -24,6 +24,7 @@ globalThis.fetch=async(url,options={})=>{
  if(path==='/api/login'){loginPayload=JSON.parse(options.body);activeUser={id:'login-account',username:'worker',name:'로그인 점검자',role:'inspector',active:true};return Response.json({user:activeUser});}
  if(path==='/api/logout'){activeUser=null;return Response.json({ok:true});}
  if(path==='/api/sites')return Response.json({sites:[{site,revision:1}]});
+ if(path==='/api/my-history')return Response.json({events:[]});
  if(path==='/api/records'||path==='/api/admin/records')return Response.json({records:[],nextCursor:null});
  if(path==='/api/accounts'||path==='/api/people')return Response.json({users:activeUser?[activeUser]:[]});
  return Response.json({error:'지원하지 않음'},{status:404});
@@ -77,6 +78,10 @@ try{
   }
   fireEvent.click(within(sidebar).getByRole('button',{name:'설정',exact:true}));
   await screen.findByRole('heading',{name:/내 기기 데이터/});
+  await waitFor(()=>assert.equal(!!screen.queryByRole('searchbox',{name:'계정 검색'}),role!=='inspector'));
+  fireEvent.click(screen.getByRole('button',{name:'내 변경이력 보기'}));
+  await screen.findByText('표시할 변경이력이 없습니다.');
+
   assert(!screen.queryByLabelText('관리자 PIN'));assert(!screen.queryByRole('button',{name:'관리자 로그인',exact:true}));
   assert.equal(!!screen.queryByRole('heading',{name:'관리자 메뉴 · 현장 관리'}),role!=='inspector');
   assert.equal(!!screen.queryByRole('heading',{name:'어드민 전용 메뉴'}),role==='owner');

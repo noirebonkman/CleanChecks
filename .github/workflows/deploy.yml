@@ -24,6 +24,8 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - name: Check required project files
+        run: node tools/check-project-files.mjs
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -43,6 +45,8 @@ jobs:
           node tests/server-configuration.mjs
           node tests/github-backup.mjs
           node tests/github-ci-config.mjs
+          node tests/project-files.mjs
+          node tests/client-requests.mjs
       - name: Server tests
         run: npm run server:test
       - name: Build and dry run
@@ -62,6 +66,8 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - name: Check required project files
+        run: node tools/check-project-files.mjs
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:

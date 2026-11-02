@@ -50,11 +50,11 @@ export function OwnerRecordTools() {
             setMessage(kind === 'records' ? '서버 점검 기록을 삭제했습니다.' : '점검자 계정과 해당 계정의 서버 기록을 삭제했습니다.');
         });
     };
-    return <details className="cloud-owner-tools"><summary>운영자 전용 관리</summary>
+    return <details className="cloud-owner-tools"><summary>어드민 전용 관리</summary>
   {message && <p role="status">{message}</p>}{error && <p role="alert" className="cloud-error">{error}</p>}
   <div className="cloud-actions"><button disabled={busy} onClick={() => void run(refresh)}>점검자·기록 불러오기</button><button disabled={busy} onClick={() => void run(async () => setEvents((await request<{
             events: Event[];
-        }>('owner/history')).events))}>상세 삭제 로그 확인</button></div>
+        }>('owner/history')).events))}>상세 관리 로그 확인</button></div>
   <form className="cloud-form" onSubmit={remove('records')}><fieldset disabled={busy}><legend>서버 점검 기록 삭제</legend>
    <label>삭제할 기록<select name="target" required><option value="">선택하세요</option>{rows.map(row => <option key={row.id} value={row.id}>{users.find(user => user.id === row.ownerId)?.name || row.ownerId} · {row.record?.site.name} · {row.record?.date.replace('T', ' ')}</option>)}</select></label>
    <label>삭제 사유<textarea name="reason" maxLength={1000} required/></label>
