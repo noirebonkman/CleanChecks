@@ -1,3 +1,4 @@
+import { hasPermission } from '../access-control';
 import type { State } from '../inspection-model';
 import { uid } from '../inspection-model';
 import { bootstrap } from '../app-bootstrap';
@@ -10,20 +11,20 @@ export async function prepareAccountWorkspace(user: ServerUser): Promise<void> {
     let data = await load();
     if (!data) data = { version: 1, installId: uid(), sites: [], staff: [], records: [], logs: [], ...bootstrap, admin: undefined };
     const self = { id: user.id, name: user.name, active: true, salt: '', hash: '' };
-    const staff = user.role === 'inspector'
+    const staff = !hasPermission(user, 'viewAllRecords')
         ? [self]
         : [...data.staff.filter(person => person.id !== user.id), self];
     // No legacy person/name matching: only this authenticated account's partition is loaded.
     await save({
         ...data, staff,
-        records: user.role === 'inspector' ? data.records.filter(record => record.staffId === user.id) : data.records,
+        records: !hasPermission(user, 'viewAllRecords') ? data.records.filter(record => record.staffId === user.id) : data.records,
         cloud: data.cloud?.userId === user.id ? { ...data.cloud, staffId: user.id, automatic: true }
             : { userId: user.id, staffId: user.id, automatic: true, records: {} },
     });
 }
 
 export async function receiveManagementRecords(user: ServerUser, current: State): Promise<State> {
-    if (user.role === 'inspector') return current;
+    if (!hasPermission(user, 'viewAllRecords')) return current;
     const [{ users }, rows] = await Promise.all([
         request<{ users: ServerUser[] }>('people'), listRemoteRecords('admin/records'),
     ]);

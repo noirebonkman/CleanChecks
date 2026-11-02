@@ -1,3 +1,4 @@
+import { permissionKeys, permissionLabels, type PermissionOverrides } from '../access-control';
 import { historyLabel } from './history-labels';
 import { useState, type FormEvent } from 'react';
 import { post, request, type ServerUser } from './client';
@@ -13,6 +14,10 @@ type Event = {
         fields?: string[];
         name?: string;
         recordCount?: number;
+        before?: PermissionOverrides;
+        after?: PermissionOverrides;
+        beforeRole?: 'owner' | 'admin' | 'inspector';
+        afterRole?: 'owner' | 'admin' | 'inspector';
     };
 };
 export function OwnerRecordTools() {
@@ -66,6 +71,6 @@ export function OwnerRecordTools() {
    <label>어드민 비밀번호<input name="password" type="password" autoComplete="current-password" required/></label>
    <label><input type="checkbox" required/>이 계정의 접속을 해제하고 서버 점검 기록도 함께 삭제하겠습니다.</label><button type="submit">점검자와 서버 기록 삭제</button></fieldset></form>
   <p className="hint">서버에서 삭제한 기록은 다음 동기화 때 기기에도 반영됩니다. 로그아웃한 기기의 로컬 기록을 원격으로 즉시 지우지는 않습니다.</p>
-  {events.map(event => <details className="cloud-record" key={event.id}><summary>{new Date(event.at).toLocaleString('ko-KR')} · {historyLabel(event.action)}</summary><p>대상: {event.detail.name || users.find(user=>user.id===event.targetId)?.name || event.targetId}</p><p>수행 계정: {users.find(user=>user.id===event.actorId)?.name || event.actorId}</p><p>사유: {event.detail.reason}</p>{event.detail.recordCount !== undefined && <p>삭제 기록: {event.detail.recordCount}건</p>}</details>)}
+  {events.map(event => <details className="cloud-record" key={event.id}><summary>{new Date(event.at).toLocaleString('ko-KR')} · {historyLabel(event.action)}</summary><p>대상: {event.detail.name || users.find(user=>user.id===event.targetId)?.name || event.targetId}</p><p>수행 계정: {users.find(user=>user.id===event.actorId)?.name || event.actorId}</p><p>사유: {event.detail.reason}</p>{event.detail.beforeRole && event.detail.afterRole && <p>등급: {event.detail.beforeRole === 'owner' ? '어드민' : event.detail.beforeRole === 'admin' ? '관리자' : '일반 사용자'} → {event.detail.afterRole === 'owner' ? '어드민' : event.detail.afterRole === 'admin' ? '관리자' : '일반 사용자'} · 개인별 권한은 새 등급 기본값으로 초기화</p>}{event.detail.before && event.detail.after && <dl>{permissionKeys.map(key => <div key={key}><dt>{permissionLabels[key]}</dt><dd>{event.detail.before![key] === null ? '등급 기본값' : event.detail.before![key] ? '허용' : '차단'} → {event.detail.after![key] === null ? '등급 기본값' : event.detail.after![key] ? '허용' : '차단'}</dd></div>)}</dl>}{event.detail.recordCount !== undefined && <p>삭제 기록: {event.detail.recordCount}건</p>}</details>)}
  </details>;
 }

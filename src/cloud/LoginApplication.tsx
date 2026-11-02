@@ -43,7 +43,7 @@ export function LoginApplication() {
             if (!navigator.onLine) return;
             void request<{ user: ServerUser }>('session').then(value => {
                 const old = userRef.current;
-                if (old && (value.user.id !== old.id || value.user.role !== old.role)) clear();
+                if (old && (value.user.id !== old.id || value.user.role !== old.role || JSON.stringify(value.user.permissions) !== JSON.stringify(old.permissions))) clear();
             }).catch(() => {});
         };
         const visible = () => { if (document.visibilityState === 'visible') check(); };

@@ -6,7 +6,7 @@ export const requiredProjectFiles = [
     'package.json', 'package-lock.json', 'index.html', 'vite.config.ts',
     'src/main.tsx', 'src/version.ts', 'src/cloud/LoginApplication.tsx',
     'server/package.json', 'server/package-lock.json', 'server/wrangler.jsonc', 'server/src/worker.ts',
-    'server/migrations/0001_initial.sql', 'server/migrations/0002_account_login.sql',
+    'server/migrations/0001_initial.sql', 'server/migrations/0002_account_login.sql', 'server/migrations/0003_account_permissions.sql',
     'tools/prepare-server-assets.mjs', 'tools/deployment-assets.mjs',
     'tools/check-server-deployment.mjs', 'tools/update-server-configuration.mjs',
 ];

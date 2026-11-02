@@ -1,3 +1,4 @@
+import { hasPermission } from '../access-control';
 import type { Inspection, State, Site } from '../inspection-model';
 import { post, request, type ServerUser } from './client';
 export type CloudLink = {
@@ -129,6 +130,7 @@ export async function synchronizeCloud(user: ServerUser, getState: () => State, 
         }
         if (!localChanged)
             continue;
+        if (!hasPermission(user, 'writeOwnRecords')) continue;
         if (!local) {
             if (!base)
                 continue;
@@ -172,6 +174,7 @@ export async function resolveCloudConflict(recordId: string, choice: 'server' | 
         throw Error('다른 점검자의 기록입니다.');
     const before = local ? await fingerprint(local) : null;
     if (choice === 'device') {
+        if (!hasPermission(user, 'writeOwnRecords')) throw Error('본인 점검 작성·수정 권한이 없습니다. 서버 내용을 선택하거나 어드민에게 문의해 주세요.');
         await save({ ...current, cloud: { ...link, records: { ...link.records, [recordId]: { revision: row.revision, fingerprint: row.deleted ? null : 'server-version-selected-for-replacement' } } } });
         return;
     }

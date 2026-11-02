@@ -1,3 +1,4 @@
+import type { EffectivePermissions, PermissionOverrides } from '../access-control';
 export type ServerUser = {
     id: string;
     username: string;
@@ -5,6 +6,9 @@ export type ServerUser = {
     role: 'owner' | 'admin' | 'inspector';
     active: boolean;
     mustChangePassword?: boolean;
+    permissions?: EffectivePermissions;
+    permissionOverrides?: PermissionOverrides;
+    permissionRevision?: number;
 };
 export class ServerError extends Error {
     constructor(public status: number, message: string) { super(message); }

@@ -1,3 +1,4 @@
+import type { EffectivePermissions, PermissionOverrides } from '../../src/access-control';
 export interface Statement {
     bind(...values: unknown[]): Statement;
     first<T = Record<string, unknown>>(): Promise<T | null>;
@@ -39,6 +40,11 @@ export type Account = {
     must_change_password: number;
     temporary_expires_at: number | null;
     session_expires_at?: number;
+    view_all_records?: number | null;
+    write_own_records?: number | null;
+    manage_sites?: number | null;
+    manage_users?: number | null;
+    permission_revision?: number;
 };
 export type PublicAccount = {
     id: string;
@@ -47,4 +53,7 @@ export type PublicAccount = {
     role: 'owner' | 'admin' | 'inspector';
     active: boolean;
     mustChangePassword?: boolean;
+    permissions: EffectivePermissions;
+    permissionOverrides: PermissionOverrides;
+    permissionRevision: number;
 };
