@@ -1,3 +1,4 @@
+import { publishAppUpdate, watchForAppUpdates } from './app-updates';
 import {AppErrorBoundary} from './AppErrorBoundary';
 import {createRoot} from 'react-dom/client';
 import { LoginApplication } from './cloud/LoginApplication';
@@ -11,5 +12,12 @@ import './responsive-layout.css';
 
 import {registerSW} from 'virtual:pwa-register';
 createRoot(document.getElementById('root')!).render(<AppErrorBoundary><LoginApplication/></AppErrorBoundary>);
-const announceUpdate=()=>{window.dispatchEvent(new CustomEvent('lucent:update',{detail:()=>updateSW(true)}));};
-const updateSW=registerSW({onNeedRefresh:announceUpdate});
+let stopUpdateChecks = () => {};
+const updateSW = registerSW({
+    onNeedRefresh: () => publishAppUpdate(() => updateSW(true)),
+    onRegisteredSW: (_url, registration) => {
+        stopUpdateChecks();
+        if (registration) stopUpdateChecks = watchForAppUpdates(registration);
+    },
+});
+if (import.meta.hot) import.meta.hot.dispose(() => stopUpdateChecks());

@@ -24,3 +24,5 @@ export { prepareAccountWorkspace } from '../src/cloud/account-workspace';
 
 export { AccountPermissionsForm } from '../src/cloud/AccountPermissionsForm';
 export { resolvePermissions, hasPermission } from '../src/access-control';
+
+export { publishAppUpdate } from '../src/app-updates';
