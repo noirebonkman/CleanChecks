@@ -508,12 +508,12 @@ for(const role of ['owner','admin','inspector']){
  fireEvent.click(screen.getAllByRole('button',{name:'설정',exact:true})[0]);
  await screen.findByText(role==='owner'?'최상위 운영자':role==='admin'?'서버 관리자':'서버 점검자');
  if(role==='inspector'){
-  assert(!screen.queryByText('관리자 모드'));assert(!screen.queryByText('운영자 전용 관리'));
+  assert(!screen.queryByText('관리자 모드'));assert(!screen.queryByText('어드민 전용 관리'));
   assert(screen.getByLabelText('이 서버 계정에 연결할 기기 점검자'));
  }else{
   assert(screen.getByText('관리자 모드'));
   assert(!screen.queryByLabelText('이 서버 계정에 연결할 기기 점검자'));
-  assert.equal(!!screen.queryByText('운영자 전용 관리'),role==='owner');
+  assert.equal(!!screen.queryByText('어드민 전용 관리'),role==='owner');
   fireEvent.click(screen.getByRole('button',{name:'관리자 로그아웃',exact:true}));
   await waitFor(()=>assert(!screen.queryByText('관리자 모드')));assert.equal(signedIn,false);
  }
