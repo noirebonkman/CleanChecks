@@ -17,7 +17,7 @@ export function AccountPermissionsForm({ person, disabled, onSave }: Props) {
                 <span>{permissionLabels[key]}<small>저장 후 적용: {resolvePermissions(person.role, values)[key] ? '허용' : '차단'}</small></span>
                 <select aria-label={person.name + ' ' + permissionLabels[key]} value={values[key] === null ? 'default' : values[key] ? 'allow' : 'deny'}
                     onChange={event => setValues(previous => ({ ...previous, [key]: event.target.value === 'default' ? null : event.target.value === 'allow' }))}>
-                    <option value="default">등급 기본값 ({defaults[key] ? '허용' : '차단'})</option>
+                    <option value="default">기본 ({defaults[key] ? '허용' : '차단'})</option>
                     <option value="allow">이 사용자 허용</option>
                     <option value="deny">이 사용자 차단</option>
                 </select>

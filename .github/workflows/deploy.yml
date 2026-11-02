@@ -47,6 +47,7 @@ jobs:
           node tests/github-ci-config.mjs
           node tests/project-files.mjs
           node tests/client-requests.mjs
+          node tests/responsive-layout.mjs
       - name: Server tests
         run: npm run server:test
       - name: Build and dry run

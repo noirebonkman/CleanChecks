@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import 'fake-indexeddb/auto';
@@ -86,6 +86,13 @@ try{
   }
   fireEvent.click(within(sidebar).getByRole('button',{name:'설정',exact:true}));
   await screen.findByRole('heading',{name:/내 기기 데이터/});
+  const settingsPage=document.querySelector('main > .server-settings');
+  assert(settingsPage,'Settings must have one shared content column');
+  assert(settingsPage.contains(screen.getByRole('heading',{name:'계정 및 기록 저장'})));
+  assert(settingsPage.querySelector('.settings-account > .account-sync'));
+  assert(!document.querySelector('main > .cloud-settings'));
+  assert(!document.querySelector('main > .page-heading'));
+
   await waitFor(()=>assert.equal(!!screen.queryByRole('searchbox',{name:'계정 검색'}),users));
   fireEvent.click(screen.getByRole('button',{name:'내 변경이력 보기'}));
   await screen.findByText('표시할 변경이력이 없습니다.');
@@ -96,7 +103,7 @@ try{
   const axe=(await import('axe-core')).default;
   let audit;await act(async()=>{audit=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:{'color-contrast':{enabled:false}}});});
   assert.deepEqual(audit.violations.map(value=>({id:value.id,nodes:value.nodes.map(node=>node.target)})),[]);
-  const styleFiles=['base-layout','interaction-feedback','theme-and-components','record-journal','mobile-inspection','inspection-workspace'];
+  const styleFiles=['base-layout','interaction-feedback','theme-and-components','record-journal','mobile-inspection','inspection-workspace','responsive-layout'];
   const snapshot='<!doctype html>'+document.documentElement.outerHTML.replace('<head>','<head><meta charset="utf-8"><base href="/">').replace('</head>',styleFiles.map(name=>'<link rel="stylesheet" href="/src/'+name+'.css">').join('')+'<link rel="stylesheet" href="/src/cloud/login-and-access.css"><link rel="stylesheet" href="/src/cloud/cloud-settings.css"><style>html{font-size:200%}.page-enter{animation:none;opacity:1}.toast{display:none!important}</style></head>');
   writeFileSync('.test-work/'+role+'-large-font.html',snapshot);
   cleanup();
