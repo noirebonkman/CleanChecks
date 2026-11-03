@@ -8,6 +8,7 @@ export interface Statement {
     run(): Promise<{
         meta: {
             changes: number;
+            size_after?: number;
         };
     }>;
 }

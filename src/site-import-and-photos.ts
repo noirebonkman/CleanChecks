@@ -27,14 +27,19 @@ export async function compress(file:File):Promise<Photo>{
  if(!file.type.startsWith('image/'))throw Error('사진 파일을 선택해 주세요.');
  const img=await decodePhoto(file);
  try{
-  const scale=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');
-  c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
-  const context=c.getContext('2d');if(!context)throw Error('사진을 처리하지 못했습니다.');
-  context.fillStyle='#fff';context.fillRect(0,0,c.width,c.height);context.drawImage(img.image,0,0,c.width,c.height);
-  let data='';try{data=c.toDataURL('image/webp',.8)}catch{}
-  if(!data.startsWith('data:image/webp;base64,'))data=c.toDataURL('image/jpeg',.82);
-  if(!/^data:image\/(webp|jpeg);base64,/.test(data))throw Error('사진을 압축하지 못했습니다. 다시 선택해 주세요.');
-  return {id:uid(),data,name:file.name};
+  let scale=Math.min(1,1600/Math.max(img.width,img.height));
+  const canvas=document.createElement('canvas');
+  for(let attempt=0;attempt<7;attempt++,scale*=.75){
+   canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
+   const context=canvas.getContext('2d');if(!context)throw Error('사진을 처리하지 못했습니다.');
+   context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(img.image,0,0,canvas.width,canvas.height);
+   for(const quality of [.8,.65,.5]){
+    let data='';try{data=canvas.toDataURL('image/webp',quality)}catch{}
+    if(!data.startsWith('data:image/webp;base64,'))data=canvas.toDataURL('image/jpeg',quality);
+    if(/^data:image\/(webp|jpeg);base64,/.test(data)&&data.split(',')[1].length<=400_000)return {id:uid(),data,name:file.name};
+   }
+  }
+  throw Error('사진을 300KB 이하로 압축하지 못했습니다.');
  }finally{img.close()}
 }
 export function photoExtension(data:string){return data.startsWith('data:image/webp;')?'webp':data.startsWith('data:image/png;')?'png':data.startsWith('data:image/gif;')?'gif':'jpg'}

@@ -5,6 +5,7 @@ import { checkLoginBurst, verifyChallenge } from './login-protection';
 import type { Environment, Account, PublicAccount } from './bindings';
 import { base64, fromBase64, cookie, sessionToken, digest, open, passwordHash, same, seal, verifyPassword } from './security';
 import { ApiError, id, jsonBody, readBody, record, revision, site, text } from './validation';
+import { cleanExpiredPhotos, inspectionPhoto, photoBytes, photoStorageBudget, trashDurationMs } from './inspection-photos';
 const sessionSeconds = 12 * 60 * 60;
 const rememberedSeconds = 30 * 24 * 60 * 60;
 const now = () => new Date().toISOString();
@@ -106,7 +107,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
                 throw new ApiError(503, '기존 자료의 암호화 키를 확인해 주세요. 새 키로 덮어쓰지 마세요.');
             }
         }
-        return send({ ok: true, service: 'cleanchecks', version: APP_VERSION, photoStorage: 'local-only' });
+        return send({ ok: true, service: 'cleanchecks', version: APP_VERSION, photoStorage: 'd1' });
     }
     if (path === '/api/setup' && method === 'POST') {
         await checkLoginBurst(env);
@@ -137,7 +138,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const body = await jsonBody(request);
         await verifyChallenge(request, body.challenge, env);
         const username = loginName(body.username), provided = text(body.password, '비밀번호', 128, true), clock = Date.now();
-        await env.DB.batch([env.DB.prepare('DELETE FROM login_attempts WHERE expires_at<?').bind(clock),env.DB.prepare('DELETE FROM inspection_trash WHERE expires_at<?').bind(clock)]);
+        await env.DB.prepare('DELETE FROM login_attempts WHERE expires_at<?').bind(clock).run();
         const attempts = await env.DB.prepare('INSERT INTO login_attempts(username,failures,expires_at) VALUES(?,1,?) ON CONFLICT(username) DO UPDATE SET failures=CASE WHEN expires_at<? THEN 1 ELSE failures+1 END,expires_at=CASE WHEN expires_at<? THEN excluded.expires_at ELSE expires_at END RETURNING failures,expires_at')
             .bind(username, clock + 15 * 60000, clock, clock).first<{
             failures: number;
@@ -300,6 +301,21 @@ async function route(request: Request, env: Environment): Promise<Response> {
         requirePermission(account, 'viewAllRecords');
         return listRecords(request, env, account, true);
     }
+    if (path === '/api/owner/photo-storage' && method === 'GET') {
+        if (account.role !== 'owner') throw new ApiError(403, '저장 공간은 어드민만 확인할 수 있습니다.');
+        const usage = await env.DB.prepare('SELECT 1 AS ok').run();
+        const databaseBytes = usage.meta.size_after;
+        return send({ used: typeof databaseBytes === 'number' && databaseBytes > 0 ? databaseBytes : await photoBytes(env), limit: 500_000_000, photoBudget: photoStorageBudget });
+    }
+    const photoMatch = /^\/api\/records\/([a-zA-Z0-9_-]+)\/photos(?:\/([a-zA-Z0-9_-]+))?$/.exec(path);
+    if (photoMatch) {
+        const photo = await inspectionPhoto(request, env, account, id(photoMatch[1]), photoMatch[2] ? id(photoMatch[2]) : undefined);
+        if ('data' in photo && photo.data && new URL(request.url).searchParams.has('image')) {
+            const [header, encoded] = photo.data.split(',');
+            return new Response(fromBase64(encoded) as unknown as BodyInit, { headers: { 'Content-Type': header.startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg', 'Cache-Control': 'no-store' } });
+        }
+        return send(photo);
+    }
     const recordMatch = /^\/api\/records\/([a-zA-Z0-9_-]+)$/.exec(path);
     if (recordMatch && (method === 'PUT' || method === 'DELETE')) {
         if (method === 'PUT') requirePermission(account, 'writeOwnRecords');
@@ -309,13 +325,26 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const value = method === 'PUT' ? record(body.record) : null;
         if (value && value.id !== recordId)
             throw new ApiError(400, '점검표 식별번호가 다릅니다.');
+        if (value && (value.photos as unknown[]).length && (body.photoManifest !== true || value.status !== 'complete'))
+            throw new ApiError(400, '사진 전송을 확인한 뒤 점검표를 저장해 주세요.');
+        if (value && body.photoManifest !== true && expected > 0) {
+            const prior = await env.DB.prepare('SELECT payload FROM inspections WHERE id=? AND account_id=? AND revision=? AND deleted=0').bind(recordId, account.id, expected).first<{payload:string}>();
+            const saved = prior && await open<{photos?: {id:string}[]}|null>(prior.payload, env);
+            if (saved?.photos?.length) throw new ApiError(409, '사진이 있는 점검표를 수정하려면 앱을 업데이트해 주세요.');
+        }
+        const photoIds = JSON.stringify((value?.photos as {id:string}[] | undefined)?.map(photo => photo.id) ?? []);
+        const photosReady = ' (SELECT COUNT(*) FROM inspection_photos WHERE account_id=? AND record_id=? AND photo_id IN (SELECT value FROM json_each(?)))=json_array_length(?)';
         const payload = await seal(value, env), deleted = method === 'DELETE' ? 1 : 0;
         // Existing rows are updated only at the revision read by this client. Audit is part of the same transaction.
         const result = await env.DB.batch([
-            ...(method === 'DELETE' ? [env.DB.prepare('INSERT INTO inspection_trash(record_id,payload,expires_at) SELECT id,payload,? FROM inspections WHERE id=? AND account_id=? AND revision=? AND deleted=0 ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(Date.now()+30*86400000, recordId, account.id, expected)] : []),
+            ...(method === 'DELETE' ? [env.DB.prepare('INSERT INTO inspection_trash(record_id,payload,expires_at) SELECT id,payload,? FROM inspections WHERE id=? AND account_id=? AND revision=? AND deleted=0 ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(Date.now()+trashDurationMs, recordId, account.id, expected)] : []),
             expected === 0
-                ? env.DB.prepare('INSERT INTO inspections(id,account_id,payload,revision,deleted,operation_id,updated_at) SELECT ?,?,?,1,?,?,? WHERE ?=0 ON CONFLICT(id) DO NOTHING').bind(recordId, account.id, payload, deleted, operation, at, deleted)
-                : env.DB.prepare('UPDATE inspections SET payload=?,revision=revision+1,deleted=?,operation_id=?,updated_at=? WHERE id=? AND account_id=? AND revision=?').bind(payload, deleted, operation, at, recordId, account.id, expected),
+                ? env.DB.prepare('INSERT INTO inspections(id,account_id,payload,revision,deleted,operation_id,updated_at) SELECT ?,?,?,1,?,?,? WHERE ?=0 AND '+photosReady+' ON CONFLICT(id) DO NOTHING').bind(recordId, account.id, payload, deleted, operation, at, deleted, account.id, recordId, photoIds, photoIds)
+                : env.DB.prepare('UPDATE inspections SET payload=?,revision=revision+1,deleted=?,operation_id=?,updated_at=? WHERE id=? AND account_id=? AND revision=? AND deleted=0 AND '+photosReady).bind(payload, deleted, operation, at, recordId, account.id, expected, account.id, recordId, photoIds, photoIds),
+            ...(value && body.photoManifest === true ? [
+                env.DB.prepare('UPDATE inspection_photos SET staged_at=NULL WHERE account_id=? AND record_id=? AND photo_id IN (SELECT value FROM json_each(?)) AND EXISTS(SELECT 1 FROM inspections WHERE id=? AND operation_id=?)').bind(account.id, recordId, photoIds, recordId, operation),
+                env.DB.prepare('DELETE FROM inspection_photos WHERE account_id=? AND record_id=? AND photo_id NOT IN (SELECT value FROM json_each(?)) AND EXISTS(SELECT 1 FROM inspections WHERE id=? AND operation_id=?)').bind(account.id, recordId, photoIds, recordId, operation),
+            ] : []),
             env.DB.prepare('INSERT INTO audit SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM inspections WHERE id=? AND operation_id=?)')
                 .bind(crypto.randomUUID(), account.id, deleted ? 'inspection-deleted' : 'inspection-saved', recordId, at, recordId, operation),
         ]);
@@ -324,7 +353,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         return send({ revision: expected + 1, updated: at });
     }
     if (path === '/api/photos' || path.startsWith('/api/photos/'))
-        throw new ApiError(410, '서버 사진 저장은 사용하지 않습니다. 사진은 촬영한 기기에 보관됩니다.');
+        throw new ApiError(410, '사진은 해당 점검표에서 열어 주세요.');
     const ownerRecord = /^\/api\/owner\/records\/([a-zA-Z0-9_-]+)$/.exec(path);
     if (ownerRecord && method === 'DELETE') {
         if (account.role !== 'owner')
@@ -343,7 +372,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
             throw new ApiError(404, '점검 기록을 찾을 수 없습니다.');
         const operation = crypto.randomUUID(), at = now(), payload = await seal(null, env);
         const results = await env.DB.batch([
-            env.DB.prepare('INSERT INTO inspection_trash(record_id,payload,expires_at) SELECT id,payload,? FROM inspections WHERE id=? AND revision=? AND deleted=0 ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(Date.now()+30*86400000, recordId, expected),
+            env.DB.prepare('INSERT INTO inspection_trash(record_id,payload,expires_at) SELECT id,payload,? FROM inspections WHERE id=? AND revision=? AND deleted=0 ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(Date.now()+trashDurationMs, recordId, expected),
             env.DB.prepare('UPDATE inspections SET payload=?,revision=revision+1,deleted=1,operation_id=?,updated_at=? WHERE id=? AND revision=? AND deleted=0').bind(payload, operation, at, recordId, expected),
             env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM inspections WHERE id=? AND operation_id=?)').bind(crypto.randomUUID(), account.id, recordId, 'record-deleted', await seal({ reason, accountId: existing.account_id, name: (await open<{
                     site?: {
@@ -373,7 +402,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         await env.DB.batch([
             env.DB.prepare('UPDATE accounts SET active=0,deleted_at=? WHERE id=?').bind(at, target),
             env.DB.prepare('DELETE FROM sessions WHERE account_id=?').bind(target),
-            env.DB.prepare('INSERT INTO inspection_trash(record_id,payload,expires_at) SELECT id,payload,? FROM inspections WHERE account_id=? AND deleted=0 ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(Date.now()+30*86400000, target),
+            env.DB.prepare('INSERT INTO inspection_trash(record_id,payload,expires_at) SELECT id,payload,? FROM inspections WHERE account_id=? AND deleted=0 ON CONFLICT(record_id) DO UPDATE SET payload=excluded.payload,expires_at=excluded.expires_at').bind(Date.now()+trashDurationMs, target),
             env.DB.prepare('UPDATE inspections SET payload=?,deleted=1,revision=revision+1,operation_id=?,updated_at=? WHERE account_id=? AND deleted=0').bind(await seal(null, env), operation, at, target),
             env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) VALUES(?,?,?,?,?,?)').bind(crypto.randomUUID(), account.id, target, 'account-deleted', await seal({ reason, name: await open(person.display_name, env), recordCount: count?.total || 0 }, env), at),
             audit(env, account.id, 'owner-deleted-account', target),
@@ -382,7 +411,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
     }
     if (path === '/api/owner/trash' && method === 'GET') {
         if (account.role !== 'owner') throw new ApiError(403, '어드민만 확인할 수 있습니다.');
-        await env.DB.prepare('DELETE FROM inspection_trash WHERE expires_at<?').bind(Date.now()).run();
+        await cleanExpiredPhotos(env);
         const rows = await env.DB.prepare('SELECT t.record_id,t.payload,t.expires_at,i.account_id,i.revision FROM inspection_trash t JOIN inspections i ON i.id=t.record_id WHERE i.deleted=1 ORDER BY t.expires_at DESC LIMIT 500').all<{record_id:string;payload:string;expires_at:number;account_id:string;revision:number}>();
         return send({ records: await Promise.all(rows.results.map(async row=>({id:row.record_id,ownerId:row.account_id,revision:row.revision,expiresAt:row.expires_at,record:await open(row.payload,env)}))) });
     }
@@ -430,6 +459,9 @@ function secureResponse(response: Response, request: Request): Response {
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 export default {
+    async scheduled(_event: unknown, env: Environment): Promise<void> {
+        await cleanExpiredPhotos(env);
+    },
     async fetch(request: Request, env: Environment): Promise<Response> {
         let response: Response;
         try {

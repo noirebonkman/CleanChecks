@@ -29,7 +29,7 @@ export async function receiveManagementRecords(user: ServerUser, current: State)
         request<{ users: ServerUser[] }>('people'), listRemoteRecords('admin/records'),
     ]);
     const others = rows.filter(row => row.ownerId !== user.id && !row.deleted && row.record).map(row => ({
-        ...row.record!, staffId: row.ownerId, photos: [], serverPhotoCount: row.record!.photoCount || 0,
+        ...row.record!, staffId: row.ownerId, photos: row.record!.photos.map(photo => ({...photo, data:''})), serverPhotoCount: row.record!.photoCount || 0,
     }));
     const owners = new Set(others.map(record => record.staffId));
     const people = users.map(person => ({ id: person.id, name: person.name, active: person.active || owners.has(person.id), salt: '', hash: '' }));

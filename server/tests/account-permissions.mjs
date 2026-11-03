@@ -26,6 +26,7 @@ try {
     await apply('0001_initial.sql'); await apply('0002_account_login.sql');
     await call('setup', 201, { method: 'POST', body: { setupToken, username: 'ludmin', name: '어드민', password } });
     await apply('0003_account_permissions.sql');
+    await apply('0004_inspection_photos.sql');
     const owner = await login('ludmin', password);
     assert(Object.values(owner.data.user.permissions).every(Boolean));
     for (const [username, role] of [['worker', 'inspector'], ['manager', 'admin']]) {

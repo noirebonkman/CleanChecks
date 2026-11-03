@@ -30,6 +30,7 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
     const [historyLoaded, setHistoryLoaded] = useState(false), [trashLoaded, setTrashLoaded] = useState(false);
     const [lastSynced, setLastSynced] = useState<string | null>(null);
     const [botConfigured, setBotConfigured] = useState<boolean | null>(null);
+    const [storageUsage, setStorageUsage] = useState<{used:number;limit:number}|null>(null);
     const access = useRef({ getState, save }); access.current = { getState, save };
     const running = useRef(false), alive = useRef(true);
     useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -50,15 +51,24 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
                 if (!alive.current || storageAccount() !== user.id) throw Error('계정이 변경되어 전송을 중단했습니다.');
                 await access.current.save(next);
             };
-            const result = await synchronizeCloud(user, () => access.current.getState(), scopedSave);
+            const result = await synchronizeCloud(user, () => access.current.getState(), scopedSave, undefined, (done,total) => {
+                if (alive.current) setStatus(`기존 사진 이전 중 · ${done}/${total}장`);
+            });
             if (hasPermission(user, 'viewAllRecords')) {
                 const next = await receiveManagementRecords(user, access.current.getState());
                 await scopedSave(next);
             }
             if (!alive.current) return;
+            if (user.role === 'owner') {
+                void request<{used:number;limit:number}>('owner/photo-storage').then(value => {
+                    if (alive.current) setStorageUsage(value);
+                }).catch(() => {});
+            }
             setConflicts(result.conflictIds);
             if (!result.conflictIds.length) setLastSynced(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
-            setStatus(result.conflictIds.length ? '동시 수정 확인 필요 · 설정에서 선택해 주세요' : '서버 전송 완료 · 사진은 이 기기에만 보관');
+            setStatus(result.conflictIds.length ? '동시 수정 확인 필요 · 설정에서 선택해 주세요' :
+                access.current.getState().records.some(record=>record.staffId===user.id&&record.pendingCompletion)
+                    ? '전송 대기 중인 점검이 있습니다.' : '서버 동기화 완료');
     });
     };
     useEffect(() => {
@@ -97,12 +107,12 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
         });
     };
     const content = <>
-        <div className="account-sync" role="status"><span>{status}{lastSynced && <small> · 마지막 저장 확인 {lastSynced}</small>}</span><button className="text-button" disabled={busy} onClick={() => void sync()}>전송 다시 확인</button></div>
+        <div className="account-sync" role="status"><span>{status}{lastSynced && <small> · 마지막 저장 확인 {lastSynced}</small>}{storageUsage&&storageUsage.used>=storageUsage.limit*.8&&<strong> · 서버 저장 공간 80% 이상 사용 중</strong>}</span><button className="text-button" disabled={busy} onClick={() => void sync()}>전송 다시 확인</button></div>
         {visible && <section className="setting-card cloud-settings">
             <h2>계정 및 기록 저장</h2><p><strong>{user.name}</strong> · {user.username} · {user.role === 'owner' ? '어드민' : user.role === 'admin' ? '관리자' : '일반 점검자'}</p>
-            <p className="hint">점검 내용은 로그인한 계정에 저장됩니다. 사진은 촬영한 기기에만 보관됩니다.</p>
+            <p className="hint">점검 내용과 사진은 서버에 저장됩니다. 전송 대기 중인 내용은 해당 기기에 임시 보관합니다.</p>
             {error && <p className="form-error" role="alert">{error}</p>}
-            {conflicts.map(id => <div key={id} className="cloud-record"><h3>동시 수정: {data.records.find(record => record.id === id)?.site.name || id}</h3><p>개인 백업 후 유지할 내용을 선택하세요.</p>{(['server', 'device'] as const).filter(choice => choice === 'server' || hasPermission(user, 'writeOwnRecords')).map(choice => <button key={choice} disabled={busy} onClick={() => void run(async () => { await resolveCloudConflict(id, choice, user, () => access.current.getState(), next => access.current.save(next)); setConflicts(value => value.filter(item => item !== id)); setTick(value => value + 1); })}>{choice === 'server' ? '서버 내용 유지' : '이 기기 내용 유지'}</button>)}</div>)}
+            {conflicts.map(id => <div key={id} className="cloud-record"><h3>동시 수정: {data.records.find(record => record.id === id)?.site.name || id}</h3><p>서버와 이 기기에서 모두 수정했습니다. 유지할 내용을 선택하세요.</p>{(['server', 'device'] as const).filter(choice => choice === 'server' || hasPermission(user, 'writeOwnRecords')).map(choice => <button key={choice} disabled={busy} onClick={() => void run(async () => { await resolveCloudConflict(id, choice, user, () => access.current.getState(), next => access.current.save(next)); setConflicts(value => value.filter(item => item !== id)); setTick(value => value + 1); })}>{choice === 'server' ? '서버 내용 유지' : '이 기기 내용 유지'}</button>)}</div>)}
             <details><summary>내 비밀번호 변경</summary><form className="cloud-form" onSubmit={event => {
                 event.preventDefault(); const fields = new FormData(event.currentTarget);
                 void run(async () => { if (fields.get('password') !== fields.get('confirm')) throw Error('새 비밀번호가 서로 다릅니다.'); await post('password', { current: fields.get('current'), password: fields.get('password') }); window.dispatchEvent(new Event('cleanchecks:server-logout')); });
@@ -140,7 +150,7 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
             </>}
             {user.role === 'owner' && <>
                 <h2>어드민 전용 메뉴</h2><OwnerRecordTools/>
-                <details><summary>삭제 유예함 · 30일</summary><button disabled={busy} onClick={() => void run(async () => { setTrash((await request<{ records: typeof trash }>('owner/trash')).records); setTrashLoaded(true); })}>삭제 기록 불러오기</button>
+                <details><summary>삭제 유예함 · 7일</summary><button disabled={busy} onClick={() => void run(async () => { setTrash((await request<{ records: typeof trash }>('owner/trash')).records); setTrashLoaded(true); })}>삭제 기록 불러오기</button>
                     {trashLoaded && trash.length === 0 && <p className="hint" role="status">복원할 삭제 기록이 없습니다.</p>}
                     {trash.map(row => <form key={row.id} className="cloud-form" onSubmit={event => {
                         event.preventDefault(); const fields = new FormData(event.currentTarget);

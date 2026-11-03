@@ -104,8 +104,8 @@ export function CloudSettings({ visible, data, getState, save, onSession }: Prop
         return null;
     return <section className="setting-card cloud-settings" aria-labelledby="cloud-heading">
   <h2 id="cloud-heading">계정 연결 및 기록 저장</h2>
-  <p>점검 기록은 서버에 저장하고 사진은 촬영한 기기에만 보관합니다. 어드민·관리자는 점검자 연결 없이 관리 기능을 사용합니다.</p>
-  <p className="hint">사진은 다른 기기나 관리자 화면으로 전송되지 않습니다. JPG·PDF 내보내기에는 이 기기의 사진이 포함됩니다.</p>
+  <p>완료한 점검 기록과 사진을 서버에 저장합니다. 어드민·관리자는 점검자 연결 없이 관리 기능을 사용합니다.</p>
+  <p className="hint">저장한 사진은 해당 점검표에서 열 수 있습니다.</p>
   {message && <p role="status">{message}</p>}{error && <p role="alert" className="cloud-error">{error}</p>}
   {user && conflicts.map(recordId => <form className="cloud-form" key={recordId} onSubmit={event => {
                 event.preventDefault();
