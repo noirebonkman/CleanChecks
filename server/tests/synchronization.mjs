@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import {readFileSync,mkdirSync} from 'node:fs';
-import {randomBytes} from 'node:crypto';
+import {readFileSync,mkdirSync,mkdtempSync,writeFileSync} from 'node:fs';
+import {createDecipheriv,randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+import {encryptBackup,decryptBackup} from '../../tools/github-backup.mjs';
 import {Miniflare} from 'miniflare';
 import {build} from '../../node_modules/esbuild/lib/main.js';
 mkdirSync('.test-work',{recursive:true});
@@ -9,13 +11,15 @@ await build({entryPoints:['src/worker.ts'],outfile:'.test-work/worker-sync.mjs',
 await build({entryPoints:['../src/cloud/synchronization.ts'],outfile:'.test-work/synchronization.mjs',bundle:true,format:'esm',platform:'browser'});
 const {synchronizeCloud,resolveCloudConflict}=await import('../.test-work/synchronization.mjs');
 const setupToken=randomBytes(32).toString('hex');
-const mf=new Miniflare({modules:true,scriptPath:'.test-work/worker-sync.mjs',compatibilityDate:'2026-08-01',d1Databases:{DB:'sync-test'},bindings:{APP_DATA_KEY:randomBytes(32).toString('base64'),SETUP_TOKEN:setupToken}});
+const dataKey=randomBytes(32);
+const mf=new Miniflare({modules:true,scriptPath:'.test-work/worker-sync.mjs',compatibilityDate:'2026-08-01',d1Databases:{DB:'sync-test'},bindings:{APP_DATA_KEY:dataKey.toString('base64'),SETUP_TOKEN:setupToken}});
 const realFetch=globalThis.fetch,realReader=globalThis.FileReader,origin='http://127.0.0.1:8787';
 try{
  const db=await mf.getD1Database('DB');
  for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  for(const sql of readFileSync('migrations/0003_account_permissions.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of readFileSync('migrations/0004_inspection_photos.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  const send=(path,body)=>mf.dispatchFetch(origin+'/api/'+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
  assert.equal((await send('setup',{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'})).status,201);
  const ownerLogin=await send('login',{username:'ludmin',password:'Strong-password-123'}),ownerCookie=ownerLogin.headers.get('set-cookie').split(';')[0];
@@ -41,7 +45,7 @@ try{
  const storedJson=await stored.json();assert.equal(storedJson.records[0].record.photos.length,0);assert(!JSON.stringify(storedJson).includes('data:image'));
 
  result=await syncB();assert.equal(result.received,1);assert.equal(b.records[0].staffId,'second-person');assert.equal(b.records[0].photos.length,0);assert.equal(b.records[0].serverPhotoCount,1);assert.equal(a.records[0].photos[0].data,image);
- console.log('PASS: selected inspector only; photos stay local and a new device receives text records only');
+ console.log('PASS: unconfirmed draft attachments stay on their original device');
  b.records[0]={...b.records[0],issues:'서버의 새 내용',updated:'2026-10-28T16:00:00Z'};
  await syncB();
  a.records[0]={...a.records[0],issues:'기기의 새 내용',updated:'2026-10-28T16:01:00Z'};
@@ -65,6 +69,101 @@ try{
  assert.equal((await db.prepare("SELECT COUNT(*) AS count FROM inspections WHERE id='readonly-draft'").first()).count,0);
  await assert.rejects(()=>resolveCloudConflict('sync-record','device',readOnlyUser,()=>readOnlyState,async next=>{readOnlyState=structuredClone(next);}),/권한/);
  console.log('PASS: read-only synchronization preserves pending local drafts without uploading them');
+ const jpg='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==';
+ const filled=Object.fromEntries([5,6,6,5,5,6,5].flatMap((count,section)=>Array.from({length:count},(_,item)=>[`${section}-${item}`,'A'])));
+ const pending={...record,id:'photo-record',rating:'양호',answers:filled,pendingCompletion:'2026-10-29T10:00:00Z',
+     photos:Array.from({length:20},(_,index)=>({id:'photo-'+index,name:'사진 '+index,data:jpg}))};
+ a.records.push(pending);
+ let attempts=0;
+ const onlineFetch=globalThis.fetch;
+ globalThis.fetch=(url,options)=>String(url).includes('/photo-record/photos/')&&options.method==='PUT'&&++attempts===5
+    ? Promise.reject(new Error('interrupted')) : onlineFetch(url,options);
+ const complete=()=>synchronizeCloud(user,()=>a,async next=>{a=structuredClone(next);},{id:pending.id});
+ await assert.rejects(complete);
+ assert.equal(a.records.find(row=>row.id===pending.id).status,'draft');
+ assert.equal((await db.prepare("SELECT COUNT(*) AS count FROM inspection_photos WHERE record_id='photo-record'").first()).count,4);
+ assert.equal((await mf.dispatchFetch(origin+'/api/records/photo-record/photos/photo-0',{headers:{Cookie:cookie}})).status,404);
+ attempts=0;
+ globalThis.fetch=(url,options)=>{if(String(url).includes('/photo-record/photos/')&&options.method==='PUT')attempts++;return onlineFetch(url,options);};
+ await complete();
+ assert.equal(attempts,16);
+ assert.equal(a.records.find(row=>row.id===pending.id).status,'complete');
+ await syncB();
+ assert.equal(b.records.find(row=>row.id===pending.id).photos.length,20);
+ const photoPath=origin+'/api/records/photo-record/photos/photo-0';
+ assert.equal((await (await mf.dispatchFetch(photoPath,{headers:{Cookie:cookie}})).json()).data,jpg);
+ assert.equal((await mf.dispatchFetch(photoPath+'?image=1',{headers:{Cookie:ownerCookie}})).headers.get('content-type'),'image/jpeg');
+ assert.equal((await mf.dispatchFetch(photoPath)).status,401);
+ a.records=a.records.map(row=>row.id===pending.id?{...row,photos:row.photos.slice(1),pendingCompletion:'2026-10-29T10:01:00Z'}:row);
+ await complete();
+ assert.equal((await mf.dispatchFetch(photoPath,{headers:{Cookie:cookie}})).status,404);
+ const ownerWrite=(path,method,body)=>mf.dispatchFetch(origin+'/api/owner/'+path,{method,headers:{Origin:origin,Cookie:ownerCookie,'Content-Type':'application/json'},body:JSON.stringify(body)});
+ const version=a.cloud.records[pending.id].revision;
+ assert.equal((await ownerWrite('records/photo-record','DELETE',{revision:version,reason:'사진 복원 테스트',password:'Strong-password-123'})).status,200);
+ const trash=await db.prepare("SELECT expires_at FROM inspection_trash WHERE record_id='photo-record'").first();
+ assert(Math.abs(trash.expires_at-Date.now()-7*86400000)<5000);
+ assert.equal((await mf.dispatchFetch(photoPath.replace('photo-0','photo-1'),{headers:{Cookie:cookie}})).status,404);
+ assert.equal((await ownerWrite('restore/photo-record','POST',{revision:version+1,reason:'사진 복원 테스트',password:'Strong-password-123'})).status,200);
+ assert.equal((await mf.dispatchFetch(photoPath.replace('photo-0','photo-1'),{headers:{Cookie:cookie}})).status,200);
+ assert.equal((await ownerWrite('records/photo-record','DELETE',{revision:version+2,reason:'사진 만료 테스트',password:'Strong-password-123'})).status,200);
+ await db.prepare("UPDATE inspection_trash SET expires_at=1 WHERE record_id='photo-record'").run();
+ assert.equal((await mf.dispatchFetch(origin+'/api/owner/trash',{headers:{Cookie:ownerCookie}})).status,200);
+ assert.equal((await db.prepare("SELECT COUNT(*) AS count FROM inspection_photos WHERE record_id='photo-record'").first()).count,0);
+ assert.equal((await ownerWrite('restore/photo-record','POST',{revision:version+3,reason:'만료 테스트',password:'Strong-password-123'})).status,409);
+ console.log('PASS: 20-photo completion resumes after interruption, exposes photos only with record access, permanently removes individual photos, and restores deleted records with photos');
+ const retryId='lost-response';
+ a.records.push({...pending,id:retryId,photos:pending.photos.slice(0,1)});
+ const finishRetry=()=>synchronizeCloud(user,()=>a,async next=>{a=structuredClone(next);},{id:retryId});
+ globalThis.fetch=async(url,options)=>{
+     const response=await onlineFetch(url,options);
+     if(String(url).endsWith('/records/'+retryId)&&options.method==='PUT'&&response.ok)throw Error('lost response');
+     return response;
+ };
+ await assert.rejects(finishRetry,/lost response/);
+ assert.equal(a.records.find(row=>row.id===retryId).status,'draft');
+ globalThis.fetch=onlineFetch;
+ await finishRetry();
+ assert.equal(a.records.find(row=>row.id===retryId).status,'complete');
+ assert.equal((await db.prepare("SELECT revision FROM inspections WHERE id='lost-response'").first()).revision,1);
+ console.log('PASS: a committed completion with a lost response is recognized on retry without rewriting the record');
+ const legacyId='legacy-completed';
+ const {staffId, pendingCompletion, ...legacyRecord}=pending;
+ const legacyRemote={...legacyRecord,id:legacyId,status:'complete',photos:[],photoCount:1,completed:pendingCompletion};
+ const legacySaved=await mf.dispatchFetch(origin+'/api/records/'+legacyId,{method:'PUT',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({revision:0,record:legacyRemote})});
+ assert.equal(legacySaved.status,200);
+ await syncA();
+ a.records=a.records.map(row=>row.id===legacyId?{...row,photos:pending.photos.slice(0,1)}:row);
+ await syncA();
+ const migrated=await mf.dispatchFetch(origin+'/api/records/'+legacyId+'/photos/photo-0',{headers:{Cookie:cookie}});
+ assert.equal(migrated.status,200);
+ assert.equal((await migrated.json()).data,jpg);
+ console.log('PASS: pre-upgrade local photos on completed records are uploaded by ordinary login synchronization');
+ const snapshot=mkdtempSync(resolve('.test-work','photo-restore-'));
+ const sqlPath=resolve(snapshot,'snapshot.sql'), encryptedPath=resolve(snapshot,'snapshot.encrypted'), restoredPath=resolve(snapshot,'restored.sql');
+ const migrations=['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql'];
+ const databaseSql=migrations.map(file=>readFileSync('migrations/'+file,'utf8')).join('\n');
+ const entries=[];
+ for(const table of ['accounts','inspections','inspection_photos']){
+     const {results}=await db.prepare('SELECT * FROM '+table).all();
+     for(const row of results){
+         const values=Object.values(row).map(value=>value===null?'NULL':typeof value==='number'?String(value):"'"+String(value).replaceAll("'","''")+"'");
+         entries.push('INSERT INTO '+table+'('+Object.keys(row).join(',')+') VALUES ('+values.join(',')+');');
+     }
+ }
+ writeFileSync(sqlPath,databaseSql+'\n'+entries.join('\n'));
+ const backupKey=randomBytes(32);
+ await encryptBackup(sqlPath,encryptedPath,backupKey);
+ await decryptBackup(encryptedPath,restoredPath,backupKey);
+ const restoredDb=new DatabaseSync(':memory:');
+ try{
+     restoredDb.exec(readFileSync(restoredPath,'utf8'));
+     const row=restoredDb.prepare('SELECT p.payload FROM inspection_photos p JOIN inspections i ON i.id=p.record_id AND i.account_id=p.account_id WHERE i.id=? AND i.deleted=0 AND p.staged_at IS NULL').get(legacyId);
+     const encrypted=Buffer.from(row.payload,'base64');
+     const decrypt=createDecipheriv('aes-256-gcm',dataKey,encrypted.subarray(0,12));
+     decrypt.setAuthTag(encrypted.subarray(-16));
+     assert.equal(JSON.parse(Buffer.concat([decrypt.update(encrypted.subarray(12,-16)),decrypt.final()]).toString('utf8')),jpg);
+ }finally{restoredDb.close();}
+ console.log('PASS: encrypted SQL backup restores the saved inspection and its readable photo into a separate test database');
  const before=JSON.stringify(a);
  globalThis.fetch=()=>Promise.reject(new Error('offline'));
  await assert.rejects(syncA,/offline/);assert.equal(JSON.stringify(a),before);

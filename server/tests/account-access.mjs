@@ -15,7 +15,7 @@ async function call(path,status,{cookie,method='GET',body}={}) {
  const data=await response.json();assert.equal(response.status,status,JSON.stringify(data));return {data,cookie:response.headers.get('set-cookie')?.split(';')[0],header:response.headers.get('set-cookie')};
 }
 try{
- for(const name of ['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql'])for(const sql of readFileSync('migrations/'+name,'utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const name of ['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql'])for(const sql of readFileSync('migrations/'+name,'utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  assert((await call('auth-config',200)).data.setupRequired);
  await call('setup',400,{method:'POST',body:{setupToken,username:'ludmin',name:'어드민',password:'Nine12345'}});
  await call('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'어드민',password:pass}});

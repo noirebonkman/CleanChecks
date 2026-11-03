@@ -51,12 +51,19 @@ export function record(value: unknown) {
     if (input.status === 'complete' && (Object.keys(cleanAnswers).length !== 38 || !['양호', '보통', '개선 필요', '집중 관리'].includes(String(result.rating))))
         throw new ApiError(400, '점검 항목과 종합평가를 모두 확인해 주세요.');
     result.answers = cleanAnswers;
-    if (!Array.isArray(input.photos) || input.photos.length !== 0)
-        throw new ApiError(400, '사진 파일은 서버로 전송하지 않습니다. 앱을 최신 버전으로 업데이트해 주세요.');
+    if (!Array.isArray(input.photos) || input.photos.length > 20)
+        throw new ApiError(400, '사진은 점검표당 20장까지 저장할 수 있습니다.');
+    const photos = input.photos.map(photo => {
+        if (!photo || typeof photo !== 'object' || 'data' in photo)
+            throw new ApiError(400, '사진은 첨부 전송 후 저장해 주세요.');
+        return { id: id(photo.id), name: text(photo.name, '사진 이름', 255) };
+    });
+    if (new Set(photos.map(photo => photo.id)).size !== photos.length)
+        throw new ApiError(400, '중복 사진이 있습니다.');
     if (input.photoCount !== undefined && (!Number.isSafeInteger(input.photoCount) || Number(input.photoCount) < 0 || Number(input.photoCount) > 20))
         throw new ApiError(400, '사진 수량을 확인해 주세요.');
-    result.photos = [];
-    result.photoCount = Number(input.photoCount || 0);
+    result.photos = photos;
+    result.photoCount = photos.length || Number(input.photoCount || 0);
     result.history = Array.isArray(input.history) ? input.history.slice(-200).map((entry: Record<string, unknown>) => ({ at: text(entry.at, '수정일', 100) })) : [];
     return result;
 }

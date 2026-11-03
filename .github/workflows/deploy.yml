@@ -102,7 +102,7 @@ jobs:
           name: cleanchecks-d1-${{ github.run_id }}-${{ github.run_attempt }}
           path: private/cloudflare-backup.encrypted
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
       - name: Apply additive database migrations
         run: node tools/ci-cloudflare.mjs migrate
         env:

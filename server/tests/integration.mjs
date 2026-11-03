@@ -20,6 +20,7 @@ try{
  for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  for(const sql of readFileSync('migrations/0003_account_permissions.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of readFileSync('migrations/0004_inspection_photos.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
  await expect('records',401);
  await expect('setup',403,{method:'POST',body:{setupToken:'wrong'}});
  await expect('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'}});
@@ -51,7 +52,7 @@ try{
  check('encrypted site catalog and revision conflict protection');
  await expect('photos',410,{method:'POST',cookie:cookieOne,body:{}});
  await expect('photos/anything',410,{cookie:cookieOne});
- check('R2 is absent and all server photo requests are rejected');
+ check('legacy unscoped photo routes remain disabled');
  const record={id:'record-1',site,date:'2026-10-28T15:20',type:'',cycle:'',technician:'',answers:{'0-0':'A'},rating:'',issues:'확인 사항',action:'',assignee:'',due:'',actionState:'',notes:'',photos:[],photoCount:1,status:'draft',modified:false,updated:new Date().toISOString(),history:[]};
  await expect('records/record-1',200,{method:'PUT',cookie:cookieOne,body:{record,revision:0}});
  await expect('records/record-1',200,{method:'PUT',cookie:cookieOne,body:{record:{...record,issues:'수정 내용'},revision:1}});
