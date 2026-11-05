@@ -281,7 +281,6 @@ async function route(request: Request, env: Environment): Promise<Response> {
     if (siteMatch && method === 'PUT') {
         requirePermission(account, 'manageSites');
         const body = await jsonBody(request), value = site(body.site), expected = revision(body.revision), operation = crypto.randomUUID(), at = now();
-        if (!value.zone.trim()) throw new ApiError(400,'현장 구역을 입력해 주세요.');
         if (value.id !== siteMatch[1])
             throw new ApiError(400, '현장 식별번호가 다릅니다.');
         const result = await env.DB.batch([

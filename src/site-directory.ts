@@ -4,7 +4,7 @@ export type Directory={kind:'lucent-directory';version:1;published:string;sites:
 export function validateDirectory(v:unknown):Directory{
  const d=v as Directory;const str=(x:unknown)=>typeof x==='string';
  if(!d||d.kind!=='lucent-directory'||d.version!==1||!str(d.published)||!Number.isFinite(Date.parse(d.published))||!Array.isArray(d.sites)||!Array.isArray(d.staff)||d.sites.length>20000||d.staff.length>2000)throw Error('현장 설정 파일 형식이 올바르지 않습니다.');
- if(!d.sites.every(s=>s&&['id','name','zone','address','priority','cycle'].every(k=>str(s[k as keyof Site]))&&s.id&&s.name.trim()&&s.zone.trim()&&s.address.trim()))throw Error('현장 설정에 필수 항목이 빠져 있습니다.');
+ if(!d.sites.every(s=>s&&['id','name','zone','address','priority','cycle'].every(k=>str(s[k as keyof Site]))&&s.id&&s.name.trim()))throw Error('현장 설정에 필수 항목이 빠져 있습니다.');
  if(!d.staff.every(s=>s&&['id','name','salt','hash'].every(k=>str(s[k as keyof Staff]))&&s.id&&s.name.trim()&&typeof s.active==='boolean'))throw Error('점검자 설정이 올바르지 않습니다.');
  if(new Set(d.sites.map(s=>s.id)).size!==d.sites.length||new Set(d.staff.map(s=>s.id)).size!==d.staff.length||new Set(d.staff.map(s=>s.name.trim().normalize().toLowerCase())).size!==d.staff.length)throw Error('중복된 현장 ID 또는 점검자가 있습니다.');return d;
 }
