@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import App from '../App';
 import { readTheme } from '../preferences';
 import { post, request, ServerError, type ServerUser } from './client';
@@ -6,6 +6,8 @@ import { prepareAccountWorkspace } from './account-workspace';
 import { Turnstile } from './Turnstile';
 import { WorkspaceMenu } from './WorkspaceMenu';
 import './login-and-access.css';
+
+const FieldCalendar = lazy(() => import('./FieldCalendar').then(module => ({ default:module.FieldCalendar })));
 
 type Configuration = { setupRequired: boolean; turnstileSiteKey: string };
 export function LoginApplication() {
@@ -77,10 +79,16 @@ export function LoginApplication() {
         } catch (cause) { setError(cause instanceof Error ? cause.message : '로그인하지 못했습니다.'); }
         finally { changing.current = false; setBusy(false); setToken(''); setChallengeVersion(value => value + 1); }
     };
-    if (user) return workspace === 'inspection'
-        ? <App key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}/>
-        : <WorkspaceMenu user={user} calendar={workspace === 'calendar'} onInspection={() => setWorkspace('inspection')}
-            onCalendar={() => setWorkspace('calendar')} onMenu={() => setWorkspace('menu')} onLogout={logout}/>;
+    if (user) {
+        if (workspace === 'inspection')
+            return <App key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}/>;
+        if (workspace === 'calendar')
+            return <Suspense fallback={<div className="login-shell" data-theme={readTheme()}><p role="status">캘린더를 여는 중입니다…</p></div>}>
+                <FieldCalendar user={user} onMenu={() => setWorkspace('menu')} onLogout={logout}/>
+            </Suspense>;
+        return <WorkspaceMenu user={user} onInspection={() => setWorkspace('inspection')}
+            onCalendar={() => setWorkspace('calendar')} onLogout={logout}/>;
+    }
     return <div className="login-shell" data-theme={readTheme()}>
         <main className="login-card" aria-busy={loading || busy}>
             <img className="login-logo" src="./logo-black.svg" alt="루센트"/>

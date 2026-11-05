@@ -6,6 +6,7 @@ import type { Environment, Account, PublicAccount } from './bindings';
 import { base64, fromBase64, cookie, sessionToken, digest, open, passwordHash, same, seal, verifyPassword } from './security';
 import { ApiError, id, jsonBody, readBody, record, revision, site, text } from './validation';
 import { cleanExpiredPhotos, inspectionPhoto, photoBytes, photoStorageBudget, trashDurationMs } from './inspection-photos';
+import { calendarRoute } from './calendar';
 const sessionSeconds = 12 * 60 * 60;
 const rememberedSeconds = 30 * 24 * 60 * 60;
 const now = () => new Date().toISOString();
@@ -269,6 +270,8 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const rows = await env.DB.prepare('SELECT action,target_id,at FROM audit WHERE actor_id=? ORDER BY at DESC LIMIT 200').bind(account.id).all();
         return send({ events: rows.results });
     }
+    if (path === '/api/calendar' || path.startsWith('/api/calendar/'))
+        return send(await calendarRoute(request, env, account, url));
     if (path === '/api/sites' && method === 'GET') {
         const rows = await env.DB.prepare('SELECT * FROM sites ORDER BY id LIMIT 2000').all<{
             id: string;
