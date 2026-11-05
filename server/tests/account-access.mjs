@@ -22,6 +22,7 @@ try{
  const owner=await call('login',200,{method:'POST',body:{username:'ludmin',password:pass,remember:true}});
  assert(owner.header.includes('Max-Age=2592000'));assert(owner.header.includes('__Host-cleanchecks_session='));
  const ownerId=owner.data.user.id;
+ assert.equal(owner.data.user.permissions.writeOwnRecords,false);
  const expiry=(await db.prepare('SELECT expires_at FROM sessions WHERE account_id=?').bind(ownerId).first()).expires_at;
  assert(Math.abs(expiry-Date.now()-30*86400000)<5000);
  await call('session',200,{cookie:owner.cookie});
@@ -56,7 +57,9 @@ try{
  await call('records/record',200,{method:'PUT',cookie:worker.cookie,body:{record,revision:0}});
  assert.equal((await call('records',200,{cookie:owner.cookie})).data.records.length,0);
  assert.equal((await call('admin/records',200,{cookie:owner.cookie})).data.records.length,1);
- await call('records/record',409,{method:'PUT',cookie:owner.cookie,body:{record:{...record,issues:'변조'},revision:1}});
+ await call('records/record',403,{method:'PUT',cookie:owner.cookie,body:{record:{...record,issues:'변조'},revision:1}});
+ await call('records/owner-new',403,{method:'PUT',cookie:owner.cookie,body:{record:{...record,id:'owner-new'},revision:0}});
+ await call('records/owner-new/photos/photo',403,{method:'PUT',cookie:owner.cookie,body:{}});
  await call('records/record',403,{method:'DELETE',cookie:worker.cookie,body:{revision:1}});
  await call('owner/records/record',403,{method:'DELETE',cookie:owner.cookie,body:{revision:1,reason:'실수',password:'wrong'}});
  await call('owner/records/record',200,{method:'DELETE',cookie:owner.cookie,body:{revision:1,reason:'실수',password:pass}});

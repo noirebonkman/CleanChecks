@@ -10,11 +10,12 @@ export const permissionLabels: Record<PermissionKey, string> = {
     manageUsers: '일반 사용자 계정 관리',
 };
 export function resolvePermissions(role: AccountRole, overrides: Partial<PermissionOverrides> = {}): EffectivePermissions {
-    return Object.fromEntries(permissionKeys.map(key => [key, role === 'owner' || (
+    return Object.fromEntries(permissionKeys.map(key => [key, role === 'owner' ? key !== 'writeOwnRecords' : (
         typeof overrides[key] === 'boolean' ? overrides[key] : key === 'writeOwnRecords' || role === 'admin'
     )])) as EffectivePermissions;
 }
 export function hasPermission(user: { role: AccountRole; permissions?: EffectivePermissions } | null | undefined, key: PermissionKey): boolean {
-    return !!user && (user.role === 'owner' || user.permissions?.[key] === true ||
-        (!user.permissions && resolvePermissions(user.role)[key]));
+    if (!user) return false;
+    if (user.role === 'owner') return key !== 'writeOwnRecords';
+    return user.permissions ? user.permissions[key] === true : resolvePermissions(user.role)[key];
 }

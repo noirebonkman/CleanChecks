@@ -40,7 +40,7 @@ try{
  const loginTwo=await expect('login',200,{method:'POST',body:{username:'inspector-two',password:'Inspector-password-123'}});
  const cookieTwo=loginTwo.response.headers.get('set-cookie').split(';')[0];
  await expect('records',200,{cookie:adminCookie});
- await expect('records/fake',400,{method:'PUT',cookie:adminCookie,body:{}});
+ await expect('records/fake',403,{method:'PUT',cookie:adminCookie,body:{}});
  await expect('accounts',403,{cookie:cookieOne});await expect('audit',403,{cookie:cookieOne});
  check('origin checks and server-enforced administrator permissions');
  const site={id:'site-1',name:'비공개 현장',zone:'구역',address:'비공개 주소 123',priority:'',cycle:''};
