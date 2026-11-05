@@ -1,13 +1,41 @@
 import type {Site,Photo} from './inspection-model';
 import {uid} from './inspection-model';
 import {download} from './local-storage';
-export async function readSites(file:File){const XLSX=await import('xlsx');const w=XLSX.read(await file.arrayBuffer(),{type:'array'}),sheet=w.Sheets[w.SheetNames[0]],end=XLSX.utils.decode_range(sheet['!ref']||'A1:F1').e,rows=XLSX.utils.sheet_to_json<any[]>(sheet,{header:1,defval:'',raw:false,range:{s:{r:0,c:0},e:{r:end.r,c:Math.max(5,end.c)}}});const valid:Site[]=[],invalid:{row:number;reason:string}[]=[];rows.forEach((r,i)=>{const values=[r[1],r[2],r[3],r[4],r[5]].map(v=>String(v??'').trim());if(!values.some(Boolean))return;if(['현장명','현장이름'].includes(values[0]))return;const [name,zone,address,priority,cycle]=values;if(!name||!zone||!address){invalid.push({row:i+1,reason:'현장명·구역·상세주소 중 빈칸이 있습니다.'});return;}valid.push({id:uid(),name,zone,address,priority,cycle});});return {valid,invalid};}
+import {siteDetailFields} from './site-details';
+
+const headers = ['순번','구분','지역','계약기간','업체명','근무형태','요일','주소','중요도','현장 연락처'];
+const totals = new Set(['계','합계','소계','총계','요약','서머리']);
+
+export async function readSites(file:File) {
+ const XLSX=await import('xlsx');
+ const workbook=XLSX.read(await file.arrayBuffer(),{type:'array'});
+ const sheet=workbook.Sheets[workbook.SheetNames[0]];
+ if(!sheet) return {valid:[],invalid:[]};
+ const end=XLSX.utils.decode_range(sheet['!ref']||'A1:J1').e;
+ const rows=XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:'',raw:false,range:{s:{r:0,c:0},e:{r:end.r,c:Math.max(9,end.c)}}})
+  .map(row=>row.map(value=>String(value??'').trim()));
+ const headerIndex=rows.findIndex(row=>row[0]==='순번'&&row[4]==='업체명');
+ const modern=headerIndex>=0;
+ const valid:Site[]=[],invalid:{row:number;reason:string}[]=[];
+ rows.forEach((row,index)=>{
+  if(modern&&index<=headerIndex)return;
+  const [name,zone,address,priority,cycle]= (modern?[4,2,7,8,5]:[1,2,3,4,5]).map(i=>row[i]||'');
+  if(totals.has(name.replace(/\s/g,''))||(!modern&&['현장명','현장이름'].includes(name)))return;
+  if(!(modern?row.slice(1,10):row.slice(1,6)).some(Boolean))return;
+  if(!name){invalid.push({row:index+1,reason:'업체명이 비어 있습니다.'});return;}
+  const details=modern?Object.fromEntries(siteDetailFields.flatMap(({key},i)=>row[[1,3,6,9][i]]?[[key,row[[1,3,6,9][i]]]]:[])):{};
+  valid.push({id:uid(),name,zone,address,priority,cycle,...details});
+ });
+ return {valid,invalid};
+}
 export function planSiteImport(existing:Site[],incoming:Site[]){
- let next=[...existing],added=0,corrected=0,duplicate=0;
+ let next=[...existing],added=0,corrected=0,duplicate=0,updated=0;
  const seen=new Set<string>();
  for(const site of incoming){
   const key=JSON.stringify([site.name,site.address]);if(seen.has(key)){duplicate++;continue}seen.add(key);
-  const same=next.find(x=>x.name===site.name&&x.address===site.address);
+  const names=next.filter(x=>x.name===site.name);
+  const same=names.find(x=>x.address===site.address) ||
+   (names.length===1&&(!site.address||!names[0].address)&&incoming.filter(x=>x.name===site.name).length===1?names[0]:undefined);
   // Repair only the exact old B-origin shift, corroborated by all three old fields.
   // Two source names sharing the same fingerprint are ambiguous and never auto-repaired.
   const sourceMatches=incoming.filter(x=>x.zone===site.zone&&x.address===site.address&&x.priority===site.priority);
@@ -17,12 +45,28 @@ export function planSiteImport(existing:Site[],incoming:Site[]){
    if(same)next=next.filter(x=>!ids.has(x.id));
    else{const keep=shifted[0].id;next=next.filter(x=>!ids.has(x.id)||x.id===keep).map(x=>x.id===keep?{...site,id:keep}:x)}
    corrected+=shifted.length;
-  }else if(same)duplicate++;
-  else{next.push(site);added++}
+  }else if(same){
+   const fields=['zone','address','priority','cycle',...siteDetailFields.map(({key})=>key)] as const;
+   const changes=fields.filter(field=>site[field]&&site[field]!==same[field]);
+   if(!changes.length)duplicate++;
+   else{
+    const refreshed={...same};
+    for(const field of changes)refreshed[field]=site[field]!;
+    next=next.map(item=>item.id===same.id?refreshed:item);
+    updated++;
+   }
+  }else{next.push(site);added++}
  }
- return {next,added,corrected,duplicate};
+ return {next,added,corrected,duplicate,updated};
 }
-export async function exportSites(sites:Site[]){const XLSX=await import('xlsx');const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['','현장명','구역','상세주소','우선도','작업주기'],...sites.map(s=>['',s.name,s.zone,s.address,s.priority,s.cycle])]),'현장 목록');download(new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})]),'현장목록.xlsx');}
+export async function exportSites(sites:Site[]){
+ const XLSX=await import('xlsx'),workbook=XLSX.utils.book_new();
+ const sheet=XLSX.utils.aoa_to_sheet([headers,...sites.map((s,i)=>[i+1,s.company||'',s.zone,s.contractPeriod||'',s.name,s.cycle,s.workDays||'',s.address,s.priority,s.contact||''])]);
+ sheet['!cols']=[8,18,12,27,32,16,19,55,10,23].map(wch=>({wch}));
+ sheet['!autofilter']={ref:sheet['!ref']!};
+ XLSX.utils.book_append_sheet(workbook,sheet,'현장 목록');
+ download(new Blob([XLSX.write(workbook,{type:'array',bookType:'xlsx'})]),'현장목록.xlsx');
+}
 export async function compress(file:File):Promise<Photo>{
  if(!file.type.startsWith('image/'))throw Error('사진 파일을 선택해 주세요.');
  const img=await decodePhoto(file);

@@ -5,7 +5,7 @@ const strings=(value:Record<string,unknown>,keys:string[])=>keys.every(key=>type
 const timestamp=(value:unknown)=>typeof value==='string'&&value.trim()!==''&&Number.isFinite(Date.parse(value));
 const answerKeys=new Set(sections.flatMap((section,si)=>section.items.map((_,i)=>`${si}-${i}`)));
 export function validSite(value:unknown):value is Site{
- return object(value)&&strings(value,['id','name','zone','address','priority','cycle'])&&['id','name','zone','address'].every(key=>(value[key] as string).trim()!=='');
+ return object(value)&&strings(value,['id','name','zone','address','priority','cycle'])&&['id','name'].every(key=>(value[key] as string).trim()!=='');
 }
 /** Validate the existing backup schema before any record is merged into local state. */
 export function validInspection(value:unknown):value is Inspection{

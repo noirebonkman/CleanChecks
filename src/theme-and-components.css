@@ -40,3 +40,4 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR','Mal
 .modal .site-picker .site-dropdown .search input{display:block;margin:0;border:0;border-radius:0;background:transparent;padding:.75rem 0;min-height:3rem;min-width:0;width:100%;line-height:1.5}
 .modal .site-picker .site-options button{display:grid;grid-template-columns:minmax(0,1fr) 1rem;align-items:center}
 .modal .site-picker .site-options button>svg{display:block;width:1rem;height:1rem;justify-self:end;align-self:center}
+.app .site-contract-expired{display:block;color:var(--danger);font-size:.75rem}
