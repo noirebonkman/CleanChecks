@@ -72,3 +72,9 @@
  .person>button:first-child{min-width:0}
  .person>button:first-child>strong{min-width:0;word-break:keep-all;overflow-wrap:anywhere}
 }
+.site-inspection-note { margin-block: .65rem; overflow-wrap: anywhere; }
+.site-inspection-note p { white-space: pre-wrap; }
+.inspection-follow-ups { padding: .8rem 1rem; border: 1px solid var(--border); border-radius: .65rem; }
+.inspection-follow-ups h3 { margin: 0 0 .4rem; font-size: .95rem; }
+.inspection-follow-ups ul { list-style: none; padding: 0; margin: 0; }
+.inspection-follow-ups .text-button { display: grid; gap: .2rem; text-align: left; justify-items: start; padding-block: .4rem; width: 100%; }

@@ -3,7 +3,8 @@ import {uid} from './inspection-model';
 import {download} from './local-storage';
 import {siteDetailFields} from './site-details';
 
-const headers = ['순번','구분','지역','계약기간','업체명','근무형태','요일','주소','중요도','현장 연락처'];
+const headers = ['순번','구분','지역','계약기간','업체명','근무형태','요일','주소','중요도','현장 연락처','점검 구역·특이사항'];
+const detailColumns = {company:1,contractPeriod:3,workDays:6,contact:9,inspectionNotes:10};
 const totals = new Set(['계','합계','소계','총계','요약','서머리']);
 
 export async function readSites(file:File) {
@@ -12,7 +13,7 @@ export async function readSites(file:File) {
  const sheet=workbook.Sheets[workbook.SheetNames[0]];
  if(!sheet) return {valid:[],invalid:[]};
  const end=XLSX.utils.decode_range(sheet['!ref']||'A1:J1').e;
- const rows=XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:'',raw:false,range:{s:{r:0,c:0},e:{r:end.r,c:Math.max(9,end.c)}}})
+ const rows=XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:'',raw:false,range:{s:{r:0,c:0},e:{r:end.r,c:Math.max(10,end.c)}}})
   .map(row=>row.map(value=>String(value??'').trim()));
  const headerIndex=rows.findIndex(row=>row[0]==='순번'&&row[4]==='업체명');
  const modern=headerIndex>=0;
@@ -21,9 +22,12 @@ export async function readSites(file:File) {
   if(modern&&index<=headerIndex)return;
   const [name,zone,address,priority,cycle]= (modern?[4,2,7,8,5]:[1,2,3,4,5]).map(i=>row[i]||'');
   if(totals.has(name.replace(/\s/g,''))||(!modern&&['현장명','현장이름'].includes(name)))return;
-  if(!(modern?row.slice(1,10):row.slice(1,6)).some(Boolean))return;
+  if(!(modern?row.slice(1,11):row.slice(1,6)).some(Boolean))return;
   if(!name){invalid.push({row:index+1,reason:'업체명이 비어 있습니다.'});return;}
-  const details=modern?Object.fromEntries(siteDetailFields.flatMap(({key},i)=>row[[1,3,6,9][i]]?[[key,row[[1,3,6,9][i]]]]:[])):{};
+  const details=modern?Object.fromEntries(siteDetailFields.flatMap(({key})=>{
+   const value=row[detailColumns[key]];
+   return value?[[key,value]]:[];
+  })):{};
   valid.push({id:uid(),name,zone,address,priority,cycle,...details});
  });
  return {valid,invalid};
@@ -61,8 +65,8 @@ export function planSiteImport(existing:Site[],incoming:Site[]){
 }
 export async function exportSites(sites:Site[]){
  const XLSX=await import('xlsx'),workbook=XLSX.utils.book_new();
- const sheet=XLSX.utils.aoa_to_sheet([headers,...sites.map((s,i)=>[i+1,s.company||'',s.zone,s.contractPeriod||'',s.name,s.cycle,s.workDays||'',s.address,s.priority,s.contact||''])]);
- sheet['!cols']=[8,18,12,27,32,16,19,55,10,23].map(wch=>({wch}));
+ const sheet=XLSX.utils.aoa_to_sheet([headers,...sites.map((s,i)=>[i+1,s.company||'',s.zone,s.contractPeriod||'',s.name,s.cycle,s.workDays||'',s.address,s.priority,s.contact||'',s.inspectionNotes||''])]);
+ sheet['!cols']=[8,18,12,27,32,16,19,55,10,23,48].map(wch=>({wch}));
  sheet['!autofilter']={ref:sheet['!ref']!};
  XLSX.utils.book_append_sheet(workbook,sheet,'현장 목록');
  download(new Blob([XLSX.write(workbook,{type:'array',bookType:'xlsx'})]),'현장목록.xlsx');
