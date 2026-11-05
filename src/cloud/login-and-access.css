@@ -43,3 +43,18 @@
 .permission-form legend{font-weight:700;padding:0 .35rem}.permission-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(10rem,1fr);gap:.75rem;align-items:center;padding:.65rem 0;border-bottom:1px solid var(--line)}
 .permission-row span{min-width:0;font-weight:600}.permission-row small{display:block;margin-top:.25rem;color:var(--muted);font-weight:400}.permission-row select{width:100%;min-width:0;min-height:2.75rem;font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:.5rem;padding:.5rem}
 @media(max-width:600px){.permission-row{grid-template-columns:1fr}.permission-form fieldset{padding:.75rem}}
+
+.workspace-card { width:min(100%,44rem); }
+.workspace-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem 1rem; margin-bottom:1.5rem; }
+.workspace-header .login-logo,.workspace-header .text-button { margin:0; }
+.workspace-card > .text-button { margin:0 0 .75rem; }
+.workspace-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:.75rem; }
+.workspace-card .workspace-option {
+    display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.65rem;
+    width:100%; min-height:5.5rem; padding:.9rem; border:1px solid var(--line); border-radius:.9rem;
+    color:var(--text); background:var(--surface); text-align:left;
+}
+.workspace-option:hover { background:var(--soft); border-color:var(--accent); }
+.workspace-option-icon { color:var(--accent); width:1.25rem; }
+.workspace-option strong,.workspace-option small { display:block; line-height:1.55; }
+.workspace-option small { margin-top:.25rem; color:var(--muted); font-size:.8rem; }

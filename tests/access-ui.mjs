@@ -37,6 +37,15 @@ try{
  fireEvent.change(await screen.findByLabelText('아이디'),{target:{value:'worker'}});
  fireEvent.change(screen.getByLabelText('비밀번호'),{target:{value:'test-password-123'}});
  fireEvent.click(screen.getByLabelText(/자동로그인/));fireEvent.click(screen.getByRole('button',{name:'로그인',exact:true}));
+ await screen.findByRole('heading',{name:'서비스 선택'});
+ fireEvent.click(screen.getByRole('button',{name:/현장 일정 캘린더/}));
+ await screen.findByRole('heading',{name:'현장 일정 캘린더'});
+ fireEvent.click(screen.getByRole('button',{name:'서비스 선택',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:/현장점검/}));
+ await screen.findByRole('heading',{name:'점검 기록'});
+ fireEvent.click(screen.getByRole('button',{name:'서비스 선택',exact:true}));
+ await screen.findByRole('heading',{name:'서비스 선택'});
+ fireEvent.click(screen.getByRole('button',{name:/현장점검/}));
  await screen.findByRole('heading',{name:'점검 기록'});
  assert(screen.getByRole('button',{name:'저장 후 새로 열기'}));
  assert.equal(loginPayload.remember,true);
@@ -59,7 +68,7 @@ try{
  for(const scenario of [
   {role:'inspector',viewAll:false,write:true,sites:false,users:false},
   {role:'admin',viewAll:true,write:true,sites:true,users:true},
-  {role:'owner',viewAll:true,write:true,sites:true,users:true},
+  {role:'owner',viewAll:true,write:false,sites:true,users:true},
   {role:'admin',viewAll:false,write:false,sites:false,users:false,custom:true},
   {role:'inspector',viewAll:true,write:false,sites:false,users:true,custom:true},
  ]){
@@ -110,14 +119,14 @@ try{
   writeFileSync('.test-work/'+role+'-large-font.html',snapshot);
   cleanup();
  }
- for(const role of ['owner','inspector']){
+ for(const role of ['admin','inspector']){
   activeUser={id:'empty-'+role,username:role,name:'첫 사용자',role,active:true};
   await api.prepareAccountWorkspace(activeUser);let empty=await api.load();
   await api.save({...empty,sites:[],records:[],cloud:{...empty.cloud,lastSynced:new Date().toISOString()}});
   render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{}}));
   await screen.findByRole('heading',{name:'점검 기록'});
   fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));
-  if(role==='owner')await screen.findByRole('heading',{name:'현장 관리',exact:true});
+  if(role==='admin')await screen.findByRole('heading',{name:'현장 관리',exact:true});
   else await screen.findByText('등록된 현장이 없습니다. 관리자에게 현장 등록을 요청해 주세요.');
   assert.equal((await api.load()).records.length,0);cleanup();
  }
@@ -134,6 +143,9 @@ try{
  assert(Object.values(savedPermissions).every(value=>value===null));
  cleanup();
  console.log('PASS: owner form supports individual grants, denials and role-default reset; custom capabilities control menus and read-only editing');
+ assert.equal(api.resolvePermissions('owner',{writeOwnRecords:true}).writeOwnRecords,false);
+ assert.equal(api.hasPermission({role:'owner',permissions:{viewAllRecords:true,writeOwnRecords:true,manageSites:true,manageUsers:true}},'writeOwnRecords'),false);
+ console.log('PASS: owner inspection writes remain denied even with old or overridden permissions');
  console.log('PASS: role-filtered sidebars, no local PIN, owner-only menus, read-only foreign records and WCAG structure for all three roles');
  const reviewer={id:'revoked-reviewer',name:'조회자',username:'reviewer',role:'admin',active:true};
  await api.prepareAccountWorkspace(reviewer);

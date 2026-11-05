@@ -28,7 +28,7 @@ try {
     await apply('0003_account_permissions.sql');
     await apply('0004_inspection_photos.sql');
     const owner = await login('ludmin', password);
-    assert(Object.values(owner.data.user.permissions).every(Boolean));
+    assert.deepEqual(owner.data.user.permissions, permissions(true, false, true, true));
     for (const [username, role] of [['worker', 'inspector'], ['manager', 'admin']]) {
         await call('accounts', 201, { method: 'POST', cookie: owner.cookie, body: { username, name: username, password: temporary, role } });
         const first = await login(username, temporary);
@@ -97,7 +97,7 @@ try {
     await call('accounts/' + workerId + '/permissions', 409, { cookie: owner.cookie, method: 'PATCH', body: { revision: 2, permissions: permissions(), reason: '승격 전 화면의 저장 차단' } });
     await call('session', 200, { cookie: worker.cookie });
     assert(Object.values(worker.data.user.permissionOverrides).every(value => value === null));
-    await call('records/own', 409, { cookie: owner.cookie, method: 'PUT', body: { record, revision: 1 } });
+    await call('records/own', 403, { cookie: owner.cookie, method: 'PUT', body: { record, revision: 1 } });
     await call('accounts/' + workerId, 200, { cookie: owner.cookie, method: 'PATCH', body: { role: 'inspector', reason: '강등' } });
     worker = await login('worker'); assert.deepEqual(worker.data.user.permissions, permissions());
     console.log('PASS: administrator denies apply immediately; promotion/demotion reset overrides to the new role without enabling foreign edits');

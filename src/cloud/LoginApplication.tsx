@@ -4,11 +4,13 @@ import { readTheme } from '../preferences';
 import { post, request, ServerError, type ServerUser } from './client';
 import { prepareAccountWorkspace } from './account-workspace';
 import { Turnstile } from './Turnstile';
+import { WorkspaceMenu } from './WorkspaceMenu';
 import './login-and-access.css';
 
 type Configuration = { setupRequired: boolean; turnstileSiteKey: string };
 export function LoginApplication() {
     const [user, setUser] = useState<ServerUser | null>(null);
+    const [workspace, setWorkspace] = useState<'menu' | 'inspection' | 'calendar'>('menu');
     const [temporaryUser, setTemporaryUser] = useState<ServerUser | null>(null);
     const [configuration, setConfiguration] = useState<Configuration | null>(null);
     const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
@@ -18,7 +20,7 @@ export function LoginApplication() {
     const userRef = useRef<ServerUser | null>(null), changing = useRef(false);
     userRef.current = user;
 
-    const clear = () => { setUser(null); setTemporaryUser(null); setError(''); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
+    const clear = () => { setUser(null); setWorkspace('menu'); setTemporaryUser(null); setError(''); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
     const enter = async (next: ServerUser, expiry?: number) => {
         expiresAt.current = typeof expiry === 'number' ? expiry : null;
         if (next.mustChangePassword) { setTemporaryUser(next); return; }
@@ -75,7 +77,10 @@ export function LoginApplication() {
         } catch (cause) { setError(cause instanceof Error ? cause.message : '로그인하지 못했습니다.'); }
         finally { changing.current = false; setBusy(false); setToken(''); setChallengeVersion(value => value + 1); }
     };
-    if (user) return <App key={user.id} session={user} onLogout={logout}/>;
+    if (user) return workspace === 'inspection'
+        ? <App key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}/>
+        : <WorkspaceMenu user={user} calendar={workspace === 'calendar'} onInspection={() => setWorkspace('inspection')}
+            onCalendar={() => setWorkspace('calendar')} onMenu={() => setWorkspace('menu')} onLogout={logout}/>;
     return <div className="login-shell" data-theme={readTheme()}>
         <main className="login-card" aria-busy={loading || busy}>
             <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
