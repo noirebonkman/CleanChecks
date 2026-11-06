@@ -33,7 +33,7 @@ globalThis.fetch=async(url,options={})=>{
  if(path==='/api/accounts/promotion-target'&&options.method==='PATCH'){
   if(failPromotion){failPromotion=false;return Response.json({error:'테스트 오류'},{status:409});}
   const patch=JSON.parse(options.body);
-  assert.equal(patch.role,'admin');assert.equal(patch.reason,'현장 운영 담당');
+  assert.deepEqual(patch,{role:'admin'});
   promotionTarget={...promotionTarget,role:patch.role};
   return Response.json({ok:true,user:promotionTarget});
  }
@@ -130,17 +130,14 @@ try{
    fireEvent.click(screen.getByRole('button',{name:'사용자 관리',exact:true}));
    await screen.findByRole('searchbox',{name:'계정 검색'});
    if(role==='owner'){
-    fireEvent.click(await screen.findByRole('button',{name:'등급 변경 테스트 계정 상세'}));
-    fireEvent.click(screen.getByRole('button',{name:'등급·상태'}));
-    fireEvent.click(screen.getByRole('button',{name:'관리자로 변경'}));
-    const dialog=await screen.findByRole('dialog',{name:'관리자로 변경'});
-    fireEvent.change(within(dialog).getByLabelText('변경 사유'),{target:{value:'현장 운영 담당'}});
-    fireEvent.click(within(dialog).getByRole('button',{name:'변경 확인'}));
-    await within(dialog).findByRole('alert');
-    fireEvent.click(within(dialog).getByRole('button',{name:'변경 확인'}));
-    await screen.findByText('등급 변경 테스트 · 관리자로 변경 완료');
-    const row=screen.getByRole('button',{name:'등급 변경 테스트 계정 상세'}).closest('[role=row]');
-    assert(within(row).getByText('관리자'));
+    const roleField=await screen.findByRole('combobox',{name:'등급 변경 테스트 등급'});
+    fireEvent.change(roleField,{target:{value:'admin'}});
+    await screen.findByText('테스트 오류');
+    assert.equal(roleField.value,'inspector');
+    assert(!screen.queryByRole('dialog'));
+    fireEvent.change(roleField,{target:{value:'admin'}});
+    await screen.findByText('관리자로 변경되었습니다.');
+    assert.equal(roleField.value,'admin');
    }
    fireEvent.click(screen.getByRole('button',{name:'일반 설정',exact:true}));
   }

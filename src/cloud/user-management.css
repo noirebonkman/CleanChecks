@@ -21,6 +21,11 @@
 .user-tag[data-tone=admin] { background:#d6eaff; color:#16477d; }
 .user-tag[data-tone=active] { background:#dff5e8; color:#185c38; }
 .user-tag[data-tone=inactive] { background:#ffe3e1; color:#8b2722; }
+.user-role-cell { min-width:0; }
+.user-role-select { min-height:44px; max-width:100%; border:1px solid currentColor; cursor:pointer; }
+.user-role-feedback { display:block; margin-top:.3rem; line-height:1.35; overflow-wrap:anywhere; }
+.user-grid-row .user-role-feedback[data-state=error] { color:var(--danger); }
+.user-grid-row .user-role-feedback[data-state=success] { color:var(--accent); }
 .account-success { border:1px solid #4f9a6d; border-radius:.55rem; background:#e7f6ed; color:#185c38; padding:.65rem .8rem; margin-bottom:.8rem; }
 .user-detail h3 { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
 .user-action-row .danger { color:#a32824; }
