@@ -76,6 +76,7 @@
 .calendar-side-title { margin-bottom:.4rem; }
 .field-calendar .visit-card { display:grid; justify-content:stretch; gap:.15rem; width:100%; margin:.3rem 0; overflow-wrap:anywhere; }
 .visit-card span,.visit-card small { font-size:.8rem; }
+.visit-card .visit-time { display:inline-block; margin-inline-end:.5em; font-variant-numeric:tabular-nums; }
 .calendar-month-list section { margin-bottom:1rem; }
 .calendar-month-list .visit-chip { margin:.25rem 0; white-space:normal; overflow-wrap:anywhere; min-height:2.75rem; }
 .calendar-details { overflow-wrap:anywhere; }

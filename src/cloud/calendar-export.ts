@@ -2,6 +2,7 @@ import { download } from '../local-storage';
 import { shiftDay, visitLabel, weekdays, workColors, workKinds, type Visit } from './calendar-model';
 
 type Week = { days: string[]; entries: Visit[][] };
+const templateHeaders = [5,11,20,27,32,38,44];
 
 function makeWeeks(month: string, days: string[], visits: Map<string, Visit[]>): Week[] {
     const weeks: Week[] = [];
@@ -41,20 +42,20 @@ async function spreadsheet(title: string, month: string, weeks: Week[]) {
     const originals = new Map([...data.children].map(row => [Number(row.getAttribute('r')),row]));
     const titleCell = originals.get(2)!.getElementsByTagName('c')[0];
     writeCell(titleCell,'                        ' + title.replace(/^FM PARTNERS · /,'').replaceAll(' ','   '));
-    for (const [number,row] of originals) if (number > 4) row.remove();
     const xfs = styles.getElementsByTagName('cellXfs')[0];
     const palette = [25,26,435].map(index => xfs.children[index].getAttribute('fillId') || '0');
     const jobStyles = new Map<string,string>();
-    function jobStyle(original: string, kind: number) {
-        const key = original + ':' + kind;
+    function jobStyle(original: string, kind: number, hasLabel: boolean) {
+        const key = original + ':' + kind + ':' + hasLabel;
         const cached = jobStyles.get(key);
         if (cached) return cached;
         const xf = xfs.children[Number(original) || 0].cloneNode(true) as Element;
         xf.setAttribute('fillId',kind < 0 ? '0' : palette[kind]);
         xf.setAttribute('applyFill','1');
-        if (kind >= 0) {
+        if (hasLabel) {
             const alignment = xf.getElementsByTagName('alignment')[0] || add(xf,'alignment');
-            alignment.setAttribute('wrapText','1');
+            alignment.setAttribute('wrapText','0');
+            alignment.setAttribute('shrinkToFit','1');
             xf.setAttribute('applyAlignment','1');
         }
         const index = String(xfs.children.length);
@@ -62,41 +63,29 @@ async function spreadsheet(title: string, month: string, weeks: Week[]) {
         jobStyles.set(key,index);
         return index;
     }
-    let nextRow = 5;
-    function copyRow(source: number) {
-        const row = originals.get(source)!.cloneNode(true) as Element;
-        row.setAttribute('r',String(nextRow));
-        [...row.children].forEach((cell,index) => cell.setAttribute('r','BCDEFGH'[index] + nextRow));
-        data.append(row);
-        nextRow++;
-        return row;
-    }
-    const headers = [5,11,20,27,32,38,44];
     const details = [['날짜','시작','종료','현장명','작업명','구분','상태']];
-    weeks.forEach((week,index) => {
-        const heading = headers[index], slots = headers[index + 1] - heading - 1;
-        const row = copyRow(heading);
-        [...row.children].forEach((cell,day) => writeCell(cell,week.days[day].startsWith(month) ? week.days[day] : ''));
-        const count = Math.max(slots,...week.entries.map(entries => entries.length));
-        for (let job = 0; job < count; job++) {
-            const offset = job === count - 1 ? slots : Math.min(job + 1,Math.max(1,slots - 1));
-            const row = copyRow(heading + offset);
-            let height = Number(row.getAttribute('ht')) || 16.5;
+    templateHeaders.slice(0,-1).forEach((heading,index) => {
+        const week = weeks[index], slots = templateHeaders[index + 1] - heading - 1;
+        const header = originals.get(heading)!;
+        [...header.children].forEach((cell,day) => {
+            const date = week?.days[day];
+            writeCell(cell,date?.startsWith(month) ? date : '');
+        });
+        for (let job = 0; job < slots; job++) {
+            const row = originals.get(heading + job + 1)!;
             [...row.children].forEach((cell,day) => {
-                const visit = week.entries[day][job];
-                cell.setAttribute('s',jobStyle(cell.getAttribute('s') || '0',visit ? workKinds.indexOf(visit.kind) : -1));
-                if (!visit) return;
-                const label = '*' + visitLabel(visit);
+                const entries = week?.entries[day] || [];
+                const overflow = job === slots - 1 && entries.length > slots;
+                const visit = overflow ? undefined : entries[job];
+                const label = overflow ? `외 ${entries.length - job}건 · 일정 목록` : visit ? '*' + visitLabel(visit) : '';
+                cell.setAttribute('s',jobStyle(cell.getAttribute('s') || '0',visit ? workKinds.indexOf(visit.kind) : -1,Boolean(label)));
                 writeCell(cell,label);
-                const width = [...label].reduce((sum,ch) => sum + (ch.charCodeAt(0) > 127 ? 2 : 1),0);
-                height = Math.max(height,Math.ceil(width / 34) * 15);
-                details.push([visit.occurrenceDate,visit.start,visit.end,visit.siteName,visit.title,visit.kind,visit.state]);
             });
-            row.setAttribute('ht',String(height));
-            row.setAttribute('customHeight','1');
+        }
+        for (const visit of week?.entries.flat() || []) {
+            details.push([visit.occurrenceDate,visit.start,visit.end,visit.siteName,visit.title,visit.kind,visit.state]);
         }
     });
-    page.getElementsByTagName('dimension')[0].setAttribute('ref','B1:H' + (nextRow - 1));
     xfs.setAttribute('count',String(xfs.children.length));
     const listData = list.getElementsByTagName('sheetData')[0];
     details.forEach((values,index) => {
@@ -127,9 +116,13 @@ async function image(title: string, month: string, weeks: Week[]) {
         if (line) lines.push(line);
         return lines;
     }
-    const layout = weeks.map(week => {
+    const layout = weeks.map((week,index) => {
         const columns = week.entries.map(entries => entries.map(visit => ({lines:wrap(visitLabel(visit)),color:workColors[workKinds.indexOf(visit.kind)]})));
-        return { days:week.days, columns, height:dayHeight + Math.max(3 * lineHeight,...columns.map(cells => cells.reduce((sum,cell) => sum + cell.lines.length * lineHeight + 4,0))) };
+        const slots = templateHeaders[index + 1] - templateHeaders[index] - 1;
+        const rowHeights = Array.from({length:Math.max(slots,...columns.map(cells => cells.length))},(_,row) =>
+            Math.max(1,...columns.map(cells => cells[row]?.lines.length || 0)) * lineHeight + 4
+        );
+        return { days:week.days, columns, rowHeights, height:dayHeight + rowHeights.reduce((sum,height) => sum + height,0) };
     });
     const height = heading + margin + layout.reduce((sum,week) => sum + week.height,0);
     if (height > 12000) throw Error('일정이 많아 이미지가 너무 깁니다. 엑셀로 내려받아 주세요.');
@@ -153,6 +146,7 @@ async function image(title: string, month: string, weeks: Week[]) {
         const x = margin + index * column;
         ctx.fillStyle = '#e6eef4'; ctx.fillRect(x,84,column,26);
         ctx.fillStyle = '#172e36'; ctx.fillText(weekday,x + column / 2 - 8,97);
+        ctx.strokeStyle = '#547078'; ctx.strokeRect(x+.5,84.5,column,26);
     });
     let top = heading;
     for (const week of layout) {
@@ -162,14 +156,19 @@ async function image(title: string, month: string, weeks: Week[]) {
             ctx.fillStyle = index === 6 ? '#a02834' : index === 5 ? '#185691' : '#172e36';
             if (date.startsWith(month)) ctx.fillText(date,x + 8,top + dayHeight / 2);
             let y = top + dayHeight;
-            for (const cell of week.columns[index]) {
-                const blockHeight = cell.lines.length * lineHeight + 4;
-                ctx.fillStyle = cell.color; ctx.fillRect(x,y,column,blockHeight);
-                ctx.fillStyle = '#172e36';
-                cell.lines.forEach((line,number) => ctx.fillText(line,x + 8,y + 2 + lineHeight * (number + .5)));
+            week.rowHeights.forEach((blockHeight,row) => {
+                const cell = week.columns[index][row];
+                if (cell) {
+                    ctx.fillStyle = cell.color; ctx.fillRect(x,y,column,blockHeight);
+                    ctx.fillStyle = '#172e36';
+                    cell.lines.forEach((line,number) => ctx.fillText(line,x + 8,y + 2 + lineHeight * (number + .5)));
+                }
+                ctx.strokeStyle = '#c0cdd2';
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.fillRect(x,y,column,1);
                 y += blockHeight;
-            }
-            ctx.strokeStyle = '#547078'; ctx.strokeRect(x,top,column,week.height);
+            });
+            ctx.strokeStyle = '#547078'; ctx.strokeRect(x+.5,top+.5,column,week.height);
         });
         top += week.height;
     }

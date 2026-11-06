@@ -22,4 +22,4 @@ export function siteLocation(site: Site): string {
 }
 
 export const knownValue = (value?: string | null) =>
-    !value?.trim() || value.trim() === '무자료' ? '미확인' : value;
+    value?.trim() && !['무자료','자료 없음','미입력'].includes(value.trim()) ? value : '미확인';

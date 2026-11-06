@@ -11,6 +11,14 @@ if (!/^\.\.\/\.server-build\/v\d+(\.\d+)+$/.test(configuration.assets?.directory
 }
 configuration.assets.directory = '../.server-build/v' + version;
 configuration.triggers = { ...configuration.triggers, crons: [...new Set([...(configuration.triggers?.crons || []), '0 * * * *'])] };
+const eventBinding = { name:'CALENDAR_EVENTS', class_name:'CalendarEvents' };
+const eventMigration = { tag:'calendar-events-v1', new_sqlite_classes:['CalendarEvents'] };
+const durable = configuration.durable_objects || {};
+configuration.durable_objects = { ...durable, bindings:[
+    ...(durable.bindings || []).filter(binding => binding.name !== eventBinding.name), eventBinding,
+] };
+if (!(configuration.migrations || []).some(migration => migration.tag === eventMigration.tag))
+    configuration.migrations = [...(configuration.migrations || []),eventMigration];
 // Preserve the deployed D1 identifier, Worker name, bindings and user configuration.
 writeFileSync(file, JSON.stringify(configuration, null, 2) + '\n');
 console.log('배포 경로 버전 반영 완료. 기존 D1 연결과 비밀 설정을 유지합니다.');
