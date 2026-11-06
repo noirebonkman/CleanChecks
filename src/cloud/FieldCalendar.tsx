@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Download, LogOut, MapPin, Plus, Search } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Download, LogOut, MapPin, Plus, Search, Settings } from 'lucide-react';
 import { hasPermission } from '../access-control';
 import type { Site } from '../inspection-model';
 import { readTheme } from '../preferences';
@@ -7,6 +7,7 @@ import { dateKey, monthDays, occurrenceId, shiftDay, todayKey, visitLabel, visit
 import { CalendarImportDialog } from './CalendarImportDialog';
 import { post, request, type ServerUser } from './client';
 import { ScheduleEditor } from './ScheduleEditor';
+import { knownValue } from '../site-details';
 import './field-calendar.css';
 
 const newSchedule = (date: string): SavedSchedule => ({
@@ -21,7 +22,7 @@ function editOccurrence(visit: Visit, date = visit.occurrenceDate): SavedSchedul
 const monthLabel = (month: string) => month.slice(0,4) + '년 ' + Number(month.slice(5)) + '월';
 const dayLabel = (day: string) => Number(day.slice(5,7)) + '월 ' + Number(day.slice(8)) + '일';
 
-export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; onMenu: () => void; onLogout: () => Promise<void> }) {
+export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: ServerUser; onMenu: () => void; onLogout: () => Promise<void>; onSettings?: () => void }) {
     const canEdit = hasPermission(user, 'manageSites');
     const [month, setMonth] = useState(() => todayKey().slice(0,7));
     const [day, setDay] = useState(todayKey);
@@ -41,6 +42,7 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
     const [revision, refresh] = useState(0);
     const [loaded, setLoaded] = useState('');
     const [loadError, setLoadError] = useState('');
+    const [syncWarning, setSyncWarning] = useState(false);
     const [notice, setNotice] = useState('');
     const [working, setWorking] = useState(false);
     const drag = useRef<Visit | null>(null);
@@ -53,11 +55,38 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
     }, [active,editor]);
     useEffect(() => {
         const controller = new AbortController();
+        let version = '', pending = false, received = false;
         setLoadError('');
-        void request<{schedules: SavedSchedule[]}>('calendar?month=' + month,{signal:controller.signal}).then(result => {
-            if (!controller.signal.aborted) { setRows(result.schedules); setLoaded(month); }
-        }).catch(cause => { if (!controller.signal.aborted) setLoadError(cause.message); });
-        return () => controller.abort();
+        async function pull() {
+            if (pending || document.visibilityState === 'hidden' || controller.signal.aborted) return;
+            pending = true;
+            try {
+                const result = await request<{schedules?: SavedSchedule[];version?:string}>(
+                    'calendar?month=' + month + (version ? '&since=' + encodeURIComponent(version) : ''),{signal:controller.signal});
+                if (controller.signal.aborted) return;
+                if (result.schedules) setRows(result.schedules);
+                version = result.version || '';
+                received = true;
+                setLoaded(month);
+                setLoadError('');
+                setSyncWarning(false);
+            } catch (cause) {
+                if (!controller.signal.aborted) {
+                    if (received) setSyncWarning(true);
+                    else setLoadError(cause instanceof Error ? cause.message : '일정을 불러오지 못했습니다.');
+                }
+            } finally { pending = false; }
+        }
+        void pull();
+        const timer = window.setInterval(pull,4000);
+        document.addEventListener('visibilitychange',pull);
+        window.addEventListener('online',pull);
+        return () => {
+            controller.abort();
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange',pull);
+            window.removeEventListener('online',pull);
+        };
     }, [month,revision]);
     useEffect(() => {
         if (!canEdit) return;
@@ -156,6 +185,7 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
                 <div className="calendar-actions">
                     {canEdit && <button disabled={!ready} onClick={() => setImportOpen(true)}>엑셀 가져오기</button>}
                     {canEdit && <button className="schedule-primary" disabled={!ready} onClick={() => openEditor(newSchedule(day))}><Plus size={17}/>일정 추가</button>}
+                    {onSettings && <button disabled={working} onClick={onSettings}><Settings size={16}/>설정</button>}
                     <button disabled={working} onClick={() => void act(onLogout)}><LogOut size={16}/>로그아웃</button>
                 </div>
             </header>
@@ -209,6 +239,7 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
             {loadError ? <div role="alert" className="calendar-feedback">{loadError} <button onClick={() => refresh(value => value + 1)}>다시 불러오기</button></div> :
                 !ready && <p role="status" className="calendar-feedback">일정을 불러오는 중입니다…</p>}
             {notice && <p role="status" className="calendar-feedback">{notice}</p>}
+            {syncWarning && <p role="status" className="calendar-feedback">연결을 다시 확인 중입니다. 마지막으로 받은 일정을 표시합니다.</p>}
             <div className="calendar-workspace">
                 {view === 'list' ? <div className="calendar-month-list">
                     {inMonth.filter(date => (visits.get(date) || []).some(filter)).map(date => <section key={date}>
@@ -247,8 +278,8 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
                             {canEdit && <button aria-label={dayLabel(day) + ' 일정 추가'} disabled={!ready} onClick={() => openEditor(newSchedule(day))}><Plus size={17}/></button>}
                         </div>
                         {selected.length ? selected.map(visit => <button key={visit.id} className="visit-card" data-kind={workKinds.indexOf(visit.kind)}
-                            onClick={() => openVisit(visit)}><strong>{visit.siteName}</strong><span>{visit.title}</span>
-                            <small>{visit.start ? visit.start + (visit.end ? '–' + visit.end : '') : '시간 미정'} · {visit.assignee || '담당 미정'} · {visit.state}</small></button>) :
+                            onClick={() => openVisit(visit)}><strong>{knownValue(visit.siteName)}</strong><span>{knownValue(visit.title)}</span>
+                            <small>{visit.start ? visit.start + (visit.end ? '–' + visit.end : '') : '시간 미확인'} · {knownValue(visit.assignee)} · {visit.state}</small></button>) :
                             <p>{ready ? '등록된 일정이 없습니다.' : '일정을 확인하는 중입니다.'}</p>}
                     </section>
                     <section>
@@ -256,7 +287,7 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
                             {canEdit && <button aria-label="날짜 미정 일정 추가" disabled={!ready} onClick={() => openEditor(newSchedule(''))}><Plus size={17}/></button>}
                         </div>
                         {unscheduled.length ? unscheduled.map(row => <button key={row.id} className="visit-card" data-kind={workKinds.indexOf(row.kind)}
-                            onClick={() => openVisit({...row,occurrenceDate:''})}><strong>{row.siteName}</strong><span>{row.title}</span><small>{row.assignee || '담당 미정'} · {row.state}</small></button>) :
+                            onClick={() => openVisit({...row,occurrenceDate:''})}><strong>{knownValue(row.siteName)}</strong><span>{knownValue(row.title)}</span><small>{knownValue(row.assignee)} · {row.state}</small></button>) :
                             <p>날짜를 정할 작업이 여기에 표시됩니다.</p>}
                     </section>
                 </aside>
@@ -266,12 +297,12 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
             </div>
             {active && <dialog className="schedule-dialog calendar-details" aria-labelledby="visit-detail-title" ref={details}
                 onCancel={event => { event.preventDefault(); setActive(null); }}>
-                <div className="calendar-side-title"><h2 id="visit-detail-title">{active.siteName} · {active.title}</h2><button onClick={() => setActive(null)}>닫기</button></div>
-                <p>{active.occurrenceDate ? dayLabel(active.occurrenceDate) : '날짜 미정'} · {active.start || '시간 미정'}{active.end && '–' + active.end} · {active.kind} · {active.state}</p>
-                <p>담당 {active.assignee || '미배정'}</p>
-                {active.address && <p><MapPin size={16}/> {active.address} <a href={'https://map.naver.com/p/search/' + encodeURIComponent(active.address)}
-                    target="_blank" rel="noreferrer">지도 열기</a></p>}
-                {active.notes && <p className="calendar-notes">{active.notes}</p>}
+                <div className="calendar-side-title"><h2 id="visit-detail-title">{knownValue(active.siteName)} · {knownValue(active.title)}</h2><button onClick={() => setActive(null)}>닫기</button></div>
+                <p>{active.occurrenceDate ? dayLabel(active.occurrenceDate) : '날짜 미확인'} · {active.start || '시간 미확인'}{active.end && '–' + active.end} · {active.kind} · {active.state}</p>
+                <p>담당 {knownValue(active.assignee)}</p>
+                <p><MapPin size={16}/> {knownValue(active.address)} {knownValue(active.address) !== '미확인' && <a href={'https://map.naver.com/p/search/' + encodeURIComponent(active.address)}
+                    target="_blank" rel="noreferrer">지도 열기</a>}</p>
+                <p className="calendar-notes">메모 {knownValue(active.notes)}</p>
                 {canEdit && <div className="calendar-actions"><button className="schedule-primary" disabled={working} onClick={() => openEditor(editOccurrence(active))}>일정 수정</button>
                     {!!active.occurrenceDate && active.state === '예정' && <button disabled={working}
                         onClick={() => void act(() => save({...editOccurrence(active),state:'완료'}))}>작업 완료</button>}

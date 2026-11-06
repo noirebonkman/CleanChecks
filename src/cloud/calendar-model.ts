@@ -1,3 +1,5 @@
+import { knownValue } from '../site-details';
+
 export const workKinds = ['자체 작업', 'SBM 작업', '정기청소'] as const;
 export const workColors = ['#dceaf8', '#fff0c8', '#e2efd8'];
 export const workStates = ['예정', '완료', '취소'] as const;
@@ -81,7 +83,8 @@ export function visitsByDay(rows: SavedSchedule[], days: string[]) {
     }));
 }
 export const visitLabel = (visit: Schedule) =>
-    [visit.start, visit.siteName, visit.title].filter(Boolean).join(' ') + (visit.state === '예정' ? '' : ' [' + visit.state + ']');
+    [visit.start, knownValue(visit.siteName), knownValue(visit.title)].filter(Boolean).join(' ') + (visit.state === '예정' ? '' : ' [' + visit.state + ']');
 export function sameAssignee(first: string, second: string) {
     return !!first.trim() && first.trim().toLowerCase() === second.trim().toLowerCase();
 }
+

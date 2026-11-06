@@ -1,8 +1,8 @@
 import { createPortal } from 'react-dom';
-import { hasPermission, type PermissionOverrides } from '../access-control';
-import { AccountPermissionsForm } from './AccountPermissionsForm';
+import { hasPermission } from '../access-control';
+import { UserManagement, roleName } from './UserManagement';
 import { historyLabel } from './history-labels';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { State } from '../inspection-model';
 import { post, request, type ServerUser } from './client';
 import { receiveManagementRecords } from './account-workspace';
@@ -10,7 +10,7 @@ import { synchronizeCloud, resolveCloudConflict, type RemoteRecord } from './syn
 import { OwnerRecordTools } from './OwnerRecordTools';
 import { storageAccount } from '../local-storage';
 
-type Props = { settingsTarget?: HTMLElement | null; user: ServerUser; visible: boolean; data: State; getState: () => State; save: (value: State) => Promise<void> };
+type Props = { section?: 'general' | 'users' | 'owner'; settingsTarget?: HTMLElement | null; user: ServerUser; visible: boolean; data: State; getState: () => State; save: (value: State) => Promise<void> };
 export async function publishSites(sites: State['sites']): Promise<void> {
     const remote = (await request<{ sites: { site: State['sites'][number]; revision: number }[] }>('sites')).sites;
     for (const site of sites) {
@@ -19,17 +19,14 @@ export async function publishSites(sites: State['sites']): Promise<void> {
         await post('sites/' + site.id, { site, revision: prior?.revision || 0 }, 'PUT');
     }
 }
-export function ServerPanel({ user, visible, data, getState, save, settingsTarget }: Props) {
+export function ServerPanel({ user, visible, data, getState, save, settingsTarget, section = 'general' }: Props) {
     const [status, setStatus] = useState('서버 전송 대기'), [error, setError] = useState('');
     const [busy, setBusy] = useState(false), [tick, setTick] = useState(0);
-    const [users, setUsers] = useState<ServerUser[]>([]), [conflicts, setConflicts] = useState<string[]>([]);
+    const [conflicts, setConflicts] = useState<string[]>([]);
     const [history, setHistory] = useState<Record<string, string>[]>([]);
     const [trash, setTrash] = useState<(RemoteRecord & { expiresAt: number })[]>([]);
-    const [accountReasons, setAccountReasons] = useState<Record<string,string>>({});
-    const [accountSearch, setAccountSearch] = useState('');
     const [historyLoaded, setHistoryLoaded] = useState(false), [trashLoaded, setTrashLoaded] = useState(false);
     const [lastSynced, setLastSynced] = useState<string | null>(null);
-    const [botConfigured, setBotConfigured] = useState<boolean | null>(null);
     const [storageUsage, setStorageUsage] = useState<{used:number;limit:number}|null>(null);
     const access = useRef({ getState, save }); access.current = { getState, save };
     const running = useRef(false), alive = useRef(true);
@@ -42,7 +39,6 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
         catch (cause) { if (alive.current) { setError(cause instanceof Error ? cause.message : '요청하지 못했습니다.'); setStatus('작업을 완료하지 못했습니다. 설정에서 내용을 확인해 주세요.'); } }
         finally { running.current = false; if (alive.current) setBusy(false); }
     };
-    const refreshUsers = async () => setUsers((await request<{ users: ServerUser[] }>('accounts')).users);
     const sync = () => {
         if (!navigator.onLine) { setStatus('오프라인 · 기기에 보존 중'); return Promise.resolve(); }
         return run(async () => {
@@ -82,34 +78,12 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
         window.addEventListener('online', online); window.addEventListener('offline', offline);
         return () => { clearInterval(timer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); };
     }, []);
-    useEffect(() => {
-        if (!visible || !hasPermission(user, 'manageUsers')) return;
-        void run(async () => {
-            await refreshUsers();
-            const config = await request<{ turnstileSiteKey: string; localDevelopment?: boolean }>('auth-config');
-            setBotConfigured(!!config.turnstileSiteKey || !!config.localDevelopment);
-        });
-    }, [visible, user.role]);
-    const changeAccount = (person: ServerUser, patch: Record<string, unknown>) => run(async () => {
-        if (!accountReasons[person.id]?.trim()) throw Error('변경 사유를 먼저 입력해 주세요.');
-        await post('accounts/' + person.id, { ...patch, reason: accountReasons[person.id] }, 'PATCH'); await refreshUsers(); setTick(value => value + 1);
-    });
-    const changePermissions = (person: ServerUser, permissions: PermissionOverrides) => run(async () => {
-        if (!accountReasons[person.id]?.trim()) throw Error('변경 사유를 먼저 입력해 주세요.');
-        await post('accounts/' + person.id + '/permissions', { permissions, revision: person.permissionRevision || 0, reason: accountReasons[person.id] }, 'PATCH');
-        await refreshUsers(); setStatus('개인별 권한을 저장했습니다. 해당 사용자는 다시 로그인해야 합니다.');
-    });
-    const create = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault(); const form = event.currentTarget, fields = new FormData(form);
-        void run(async () => {
-            await post('accounts', { username: fields.get('username'), name: fields.get('name'), password: fields.get('password'), role: fields.get('role') || 'inspector' });
-            await refreshUsers(); form.reset(); setStatus('계정을 만들었습니다. 임시 비밀번호는 7일 안에 사용해야 합니다.'); setTick(value => value + 1);
-        });
-    };
     const content = <>
         <div className="account-sync" role="status"><span>{status}{lastSynced && <small> · 마지막 저장 확인 {lastSynced}</small>}{storageUsage&&storageUsage.used>=storageUsage.limit*.8&&<strong> · 서버 저장 공간 80% 이상 사용 중</strong>}</span><button className="text-button" disabled={busy} onClick={() => void sync()}>전송 다시 확인</button></div>
-        {visible && <section className="setting-card cloud-settings">
-            <h2>계정 및 기록 저장</h2><p><strong>{user.name}</strong> · {user.username} · {user.role === 'owner' ? '어드민' : user.role === 'admin' ? '관리자' : '일반 점검자'}</p>
+        {visible && section === 'users' && hasPermission(user,'manageUsers') && <UserManagement user={user}/>}
+        {visible && section !== 'users' && <section className="setting-card cloud-settings">
+            {section === 'general' && <>
+            <h2>계정 및 기록 저장</h2><p><strong>{user.name}</strong> · {user.username} · {roleName[user.role]}</p>
             <p className="hint">점검 내용과 사진은 서버에 저장됩니다. 전송 대기 중인 내용은 해당 기기에 임시 보관합니다.</p>
             {error && <p className="form-error" role="alert">{error}</p>}
             {conflicts.map(id => <div key={id} className="cloud-record"><h3>동시 수정: {data.records.find(record => record.id === id)?.site.name || id}</h3><p>서버와 이 기기에서 모두 수정했습니다. 유지할 내용을 선택하세요.</p>{(['server', 'device'] as const).filter(choice => choice === 'server' || hasPermission(user, 'writeOwnRecords')).map(choice => <button key={choice} disabled={busy} onClick={() => void run(async () => { await resolveCloudConflict(id, choice, user, () => access.current.getState(), next => access.current.save(next)); setConflicts(value => value.filter(item => item !== id)); setTick(value => value + 1); })}>{choice === 'server' ? '서버 내용 유지' : '이 기기 내용 유지'}</button>)}</div>)}
@@ -120,35 +94,8 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
             <button className="setting-row" onClick={() => void run(async () => { setHistory((await request<{ events: Record<string,string>[] }>('my-history')).events); setHistoryLoaded(true); })}>내 변경이력 보기</button>
             {historyLoaded && history.length === 0 && <p className="hint" role="status">표시할 변경이력이 없습니다.</p>}
             {history.map((item, index) => <p key={index}>{new Date(item.at).toLocaleString('ko-KR')} · {historyLabel(item.action)} · {data.records.find(record=>record.id===item.target_id)?.site.name || '계정 작업'}</p>)}
-            {hasPermission(user, 'manageUsers') && <>
-                <h2>관리자 메뉴 · 계정 관리</h2>
-                {user.role === 'owner' && botConfigured === false && <p className="hint">Turnstile 키가 아직 등록되지 않았습니다. 현재는 서버의 로그인 시도 제한만 적용됩니다.</p>}
-                <details><summary>사용자 계정 추가</summary><form className="cloud-form" onSubmit={create}><fieldset disabled={busy}><legend>사용자 계정 추가</legend>
-                    <label>아이디<input name="username" autoCapitalize="none" autoComplete="off" pattern="[a-z0-9][a-z0-9._-]{2,79}" required/></label>
-                    <label>이름<input name="name" maxLength={100} required/></label>
-                    <label>임시 비밀번호<input name="password" type="password" minLength={10} maxLength={128} placeholder="10자 이상" autoComplete="new-password" required/></label>
-                    {user.role === 'owner' && <label>계정 권한<select name="role"><option value="inspector">일반 점검자</option><option value="admin">관리자</option></select></label>}
-                    <p className="hint">첫 로그인 때 본인 비밀번호로 변경해야 사용할 수 있습니다.</p><button className="primary">계정 생성</button>
-                </fieldset></form></details>
-                <label className="cloud-form">계정 검색<input type="search" value={accountSearch} onChange={event => setAccountSearch(event.target.value)} placeholder="이름 또는 아이디"/></label>
-                {users.filter(person => person.id !== user.id && person.role !== 'owner' && (person.name + ' ' + person.username).toLocaleLowerCase().includes(accountSearch.trim().toLocaleLowerCase())).length === 0 && <p className="hint">표시할 계정이 없습니다.</p>}
-                {users.filter(person => person.id !== user.id && person.role !== 'owner' && (person.name + ' ' + person.username).toLocaleLowerCase().includes(accountSearch.trim().toLocaleLowerCase())).map(person => <details className="cloud-account" key={person.id}>
-                    <summary>{person.name} · {person.username} · {person.role === 'admin' ? '관리자' : '점검자'} · {person.active ? '사용 중' : '사용 중지'}</summary>
-                    <label>변경 사유<input value={accountReasons[person.id]||''} maxLength={1000} onChange={event=>setAccountReasons(value=>({...value,[person.id]:event.target.value}))}/></label>
-                    {(person.role === 'inspector' || user.role === 'owner') && <>
-                        <button disabled={busy} onClick={() => void changeAccount(person, { active: !person.active })}>{person.active ? '사용 중지' : '사용 재개'}</button>
-                        <form className="cloud-form" onSubmit={event => { event.preventDefault(); const fields = new FormData(event.currentTarget); void changeAccount(person, { password: fields.get('password') }); }}>
-                            <label>재발급할 임시 비밀번호<input type="password" name="password" autoComplete="new-password" minLength={10} maxLength={128} placeholder="10자 이상" required/></label><button disabled={busy}>임시 비밀번호로 초기화</button>
-                        </form>
-                    </>}
-                    {user.role === 'owner' && <>
-                        <p className="hint">등급을 변경하면 개인별 권한은 새 등급의 기본값으로 초기화됩니다. 다른 점검자 기록 수정과 어드민 전용 기능은 허용되지 않습니다.</p>
-                        <button disabled={busy} onClick={() => void changeAccount(person, { role: person.role === 'admin' ? 'inspector' : 'admin' })}>{person.role === 'admin' ? '일반 사용자로 변경' : '관리자로 변경'}</button>
-                        <AccountPermissionsForm key={person.id + ':' + (person.permissionRevision || 0) + ':' + person.role} person={person} disabled={busy} onSave={permissions => changePermissions(person, permissions)}/>
-                    </>}
-                </details>)}
             </>}
-            {user.role === 'owner' && <>
+            {section === 'owner' && user.role === 'owner' && <>
                 <h2>어드민 전용 메뉴</h2><OwnerRecordTools/>
                 <details><summary>삭제 유예함 · 7일</summary><button disabled={busy} onClick={() => void run(async () => { setTrash((await request<{ records: typeof trash }>('owner/trash')).records); setTrashLoaded(true); })}>삭제 기록 불러오기</button>
                     {trashLoaded && trash.length === 0 && <p className="hint" role="status">복원할 삭제 기록이 없습니다.</p>}

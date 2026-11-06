@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, CalendarDays, ClipboardCheck, LogOut } from 'lucide-react';
+import { ArrowRight, CalendarDays, ClipboardCheck, LogOut, Settings } from 'lucide-react';
 import { hasPermission } from '../access-control';
 import { readTheme } from '../preferences';
 import type { ServerUser } from './client';
 
-export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout }: {
+export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout, onSettings }: {
     user: ServerUser;
     onInspection: () => void;
     onCalendar: () => void;
     onLogout: () => Promise<void>;
+    onSettings: () => void;
 }) {
     const heading = useRef<HTMLHeadingElement>(null);
     const [loggingOut, setLoggingOut] = useState(false);
@@ -27,7 +28,10 @@ export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout }: {
         <main className="login-card workspace-card" aria-labelledby="workspace-title">
             <header className="workspace-header">
                 <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
-                <button className="text-button" disabled={loggingOut} onClick={() => void logout()}><LogOut size={17}/>로그아웃</button>
+                <div className="workspace-header-actions">
+                    <button className="text-button" disabled={loggingOut} onClick={onSettings}><Settings size={17}/>설정</button>
+                    <button className="text-button" disabled={loggingOut} onClick={() => void logout()}><LogOut size={17}/>로그아웃</button>
+                </div>
             </header>
             <h1 id="workspace-title" ref={heading} tabIndex={-1}>서비스 선택</h1>
             <p>{user.name}님, 이용할 서비스를 선택해 주세요.</p>
