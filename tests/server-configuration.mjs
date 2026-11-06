@@ -11,7 +11,13 @@ writeFileSync(resolve(root,'package.json'),JSON.stringify({version:'0.95'}));
 writeFileSync(resolve(root,'server/wrangler.jsonc'),JSON.stringify(original));
 execFileSync(process.execPath,[resolve(root,'tools/update-server-configuration.mjs')],{stdio:'pipe'});
 const result=JSON.parse(readFileSync(resolve(root,'server/wrangler.jsonc'),'utf8'));
-assert.deepEqual(result,{...original,assets:{...original.assets,directory:'../.server-build/v0.95'},triggers:{crons:['0 1 * * *','0 * * * *']}});
+assert.deepEqual(result,{
+    ...original,
+    assets:{...original.assets,directory:'../.server-build/v0.95'},
+    triggers:{crons:['0 1 * * *','0 * * * *']},
+    durable_objects:{bindings:[{name:'CALENDAR_EVENTS',class_name:'CalendarEvents'}]},
+    migrations:[{tag:'calendar-events-v1',new_sqlite_classes:['CalendarEvents']}],
+});
 execFileSync(process.execPath,[resolve(root,'tools/update-server-configuration.mjs')],{stdio:'pipe'});
 assert.deepEqual(JSON.parse(readFileSync(resolve(root,'server/wrangler.jsonc'),'utf8')),result);
 writeFileSync(resolve(root,'server/wrangler.jsonc'),JSON.stringify({...original,assets:{directory:'../../private'}}));

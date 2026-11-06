@@ -22,6 +22,10 @@ export interface Database {
 }
 export interface Environment {
     DB: Database;
+    CALENDAR_EVENTS?: {
+        idFromName(name: string): unknown;
+        get(id: unknown): { fetch(request: Request): Promise<Response> };
+    };
     TURNSTILE_SITE_KEY?: string;
     TURNSTILE_SECRET_KEY?: string;
     ASSETS?: {

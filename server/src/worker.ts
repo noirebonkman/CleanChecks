@@ -7,6 +7,8 @@ import { base64, fromBase64, cookie, sessionToken, digest, open, passwordHash, s
 import { ApiError, id, jsonBody, readBody, record, revision, site, text } from './validation';
 import { cleanExpiredPhotos, inspectionPhoto, photoBytes, photoStorageBudget, trashDurationMs } from './inspection-photos';
 import { calendarRoute } from './calendar';
+import { calendarEventHub, publishCalendarChange } from './calendar-events';
+export { CalendarEvents } from './calendar-events';
 const sessionSeconds = 12 * 60 * 60;
 const rememberedSeconds = 30 * 24 * 60 * 60;
 const now = () => new Date().toISOString();
@@ -281,8 +283,20 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const rows = await env.DB.prepare('SELECT action,target_id,at FROM audit WHERE actor_id=? ORDER BY at DESC LIMIT 200').bind(account.id).all();
         return send({ events: rows.results });
     }
-    if (path === '/api/calendar' || path.startsWith('/api/calendar/'))
-        return send(await calendarRoute(request, env, account, url));
+    if (path === '/api/calendar/events' && method === 'GET') {
+        if (request.headers.get('Origin') !== url.origin) throw new ApiError(403,'같은 사이트에서 연결해 주세요.');
+        const hub = calendarEventHub(env);
+        if (!hub) throw new ApiError(503,'실시간 연결을 사용할 수 없습니다.');
+        return hub.fetch(new Request(request,{headers:{
+            Upgrade:request.headers.get('Upgrade') || '',
+            'X-Calendar-Session-Expires':String(account.session_expires_at || 0),
+        }}));
+    }
+    if (path === '/api/calendar' || path.startsWith('/api/calendar/')) {
+        const result = await calendarRoute(request, env, account, url);
+        if (method !== 'GET') await publishCalendarChange(env);
+        return send(result);
+    }
     if (path === '/api/sites' && method === 'GET') {
         const rows = await env.DB.prepare('SELECT * FROM sites ORDER BY id LIMIT 2000').all<{
             id: string;
@@ -462,6 +476,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
     throw new ApiError(404, '지원하지 않는 요청입니다.');
 }
 function secureResponse(response: Response, request: Request): Response {
+    if (response.status === 101) return response;
     const headers = new Headers(response.headers);
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('Referrer-Policy', 'no-referrer');

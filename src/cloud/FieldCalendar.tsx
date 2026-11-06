@@ -8,6 +8,7 @@ import { CalendarImportDialog } from './CalendarImportDialog';
 import { post, request, type ServerUser } from './client';
 import { ScheduleEditor } from './ScheduleEditor';
 import { knownValue } from '../site-details';
+import { useCalendarLive } from './calendar-live';
 import './field-calendar.css';
 
 const newSchedule = (date: string): SavedSchedule => ({
@@ -49,6 +50,8 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     const drag = useRef<Visit | null>(null);
     const heading = useRef<HTMLHeadingElement>(null);
     const details = useRef<HTMLDialogElement>(null);
+    const requestLatest = useRef<() => void>(() => {});
+    const live = useCalendarLive(() => requestLatest.current());
     useEffect(() => { heading.current?.focus(); }, []);
     useEffect(() => {
         if (active && !editor && !details.current?.open) details.current?.showModal();
@@ -56,11 +59,13 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     }, [active,editor]);
     useEffect(() => {
         const controller = new AbortController();
-        let version = '', pending = false, received = false;
+        let version = '', pending = false, received = false, queued = false, lastCheck = 0;
         setLoadError('');
         async function pull() {
-            if (pending || document.visibilityState === 'hidden' || controller.signal.aborted) return;
+            if (document.visibilityState === 'hidden' || controller.signal.aborted) return;
+            if (pending) { queued = true; return; }
             pending = true;
+            lastCheck = Date.now();
             try {
                 const result = await request<{schedules?: SavedSchedule[];version?:string}>(
                     'calendar?month=' + month + (version ? '&since=' + encodeURIComponent(version) : ''),{signal:controller.signal});
@@ -76,19 +81,26 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                     if (received) setSyncWarning(true);
                     else setLoadError(cause instanceof Error ? cause.message : '일정을 불러오지 못했습니다.');
                 }
-            } finally { pending = false; }
+            } finally {
+                pending = false;
+                if (queued) { queued = false; void pull(); }
+            }
         }
+        requestLatest.current = pull;
         void pull();
-        const timer = window.setInterval(pull,4000);
+        const timer = window.setInterval(() => {
+            if (!pending && (!live.current || Date.now() - lastCheck >= 30000)) void pull();
+        },4000);
         document.addEventListener('visibilitychange',pull);
         window.addEventListener('online',pull);
         return () => {
             controller.abort();
+            requestLatest.current = () => {};
             window.clearInterval(timer);
             document.removeEventListener('visibilitychange',pull);
             window.removeEventListener('online',pull);
         };
-    }, [month,revision]);
+    }, [month,revision,live]);
     useEffect(() => {
         if (!canEdit) return;
         const controller = new AbortController();
@@ -286,8 +298,9 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                             {canEdit && <button aria-label={dayLabel(day) + ' 일정 추가'} disabled={!ready} onClick={() => openEditor(newSchedule(day))}><Plus size={17}/></button>}
                         </div>
                         {selected.length ? selected.map(visit => <button key={visit.id} className="visit-card" data-kind={workKinds.indexOf(visit.kind)}
-                            onClick={() => openVisit(visit)}><strong>{knownValue(visit.siteName)}</strong><span>{knownValue(visit.title)}</span>
-                            <small>{visit.start ? visit.start + (visit.end ? '–' + visit.end : '') : '시간 미확인'} · {knownValue(visit.assignee)} · {visit.state}</small></button>) :
+                            onClick={() => openVisit(visit)}>
+                            <strong><span className="visit-time">{visit.start ? visit.start + (visit.end ? '–' + visit.end : '') : '시간 미확인'}</span>{knownValue(visit.siteName)}</strong>
+                            <span>{knownValue(visit.title)}</span><small>{knownValue(visit.assignee)} · {visit.state}</small></button>) :
                             <p>{ready ? '등록된 일정이 없습니다.' : '일정을 확인하는 중입니다.'}</p>}
                     </section>
                     <section>
