@@ -45,6 +45,8 @@
 @media(max-width:600px){.permission-row{grid-template-columns:1fr}.permission-form fieldset{padding:.75rem}}
 
 .workspace-card { width:min(100%,44rem); }
+.workspace-card #workspace-title:focus { outline:none; }
+.workspace-header-actions { display:flex; flex-wrap:wrap; gap:1rem; }
 .workspace-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem 1rem; margin-bottom:1.5rem; }
 .workspace-header .login-logo,.workspace-header .text-button { margin:0; }
 .workspace-card > .text-button { margin:0 0 .75rem; }

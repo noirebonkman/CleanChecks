@@ -7,6 +7,8 @@ const dom=new JSDOM('<!doctype html><html lang="ko"><head><title>현장점검</t
 for(const key of ['window','document','localStorage','HTMLElement','Element','Node','Event','MouseEvent','CustomEvent','MutationObserver','FormData','getComputedStyle'])globalThis[key]=key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key];
 globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);globalThis.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);
 globalThis.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
+dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
 dom.window.scrollTo=()=>{};dom.window.HTMLElement.prototype.scrollIntoView=()=>{};globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 mkdirSync('.test-work',{recursive:true});
 await build({entryPoints:['tests/api.ts'],outfile:'.test-work/access-api.mjs',bundle:true,platform:'node',format:'esm',packages:'external',jsx:'automatic'});
@@ -17,6 +19,8 @@ const base={id:'record',staffId:'someone',site,date:'2026-10-30T12:00',type:'',c
 await api.load();
 await api.save({version:1,installId:'legacy-device',sites:[site],staff:[{id:'legacy-person',name:'로그인 점검자',salt:'',hash:'',active:true}],records:[{...base,id:'legacy-record',staffId:'legacy-person'}],logs:[],...api.bootstrap});
 let activeUser=null,loginPayload;
+let promotionTarget={id:'promotion-target',username:'promotion',name:'등급 변경 테스트',role:'inspector',active:true};
+let failPromotion=true;
 globalThis.fetch=async(url,options={})=>{
  const path=String(url);
  if(path==='/api/auth-config')return Response.json({setupRequired:false,turnstileSiteKey:''});
@@ -26,6 +30,14 @@ globalThis.fetch=async(url,options={})=>{
  if(path==='/api/sites')return Response.json({sites:[{site,revision:1}]});
  if(path==='/api/my-history')return Response.json({events:[]});
  if(path==='/api/records'||path==='/api/admin/records')return Response.json({records:[],nextCursor:null});
+ if(path==='/api/accounts/promotion-target'&&options.method==='PATCH'){
+  if(failPromotion){failPromotion=false;return Response.json({error:'테스트 오류'},{status:409});}
+  const patch=JSON.parse(options.body);
+  assert.equal(patch.role,'admin');assert.equal(patch.reason,'현장 운영 담당');
+  promotionTarget={...promotionTarget,role:patch.role};
+  return Response.json({ok:true,user:promotionTarget});
+ }
+ if(path==='/api/accounts'&&activeUser?.role==='owner')return Response.json({users:[activeUser,promotionTarget]});
  if(path==='/api/accounts'||path==='/api/people')return Response.json({users:activeUser?[activeUser]:[]});
  return Response.json({error:'지원하지 않음'},{status:404});
 };
@@ -38,7 +50,15 @@ try{
  fireEvent.change(screen.getByLabelText('비밀번호'),{target:{value:'test-password-123'}});
  fireEvent.click(screen.getByLabelText(/자동로그인/));fireEvent.click(screen.getByRole('button',{name:'로그인',exact:true}));
  await screen.findByRole('heading',{name:'서비스 선택'});
+ fireEvent.click(screen.getByRole('button',{name:'설정',exact:true}));
+ await screen.findByRole('heading',{name:/설정 v/});
+ assert(!document.querySelector('#inspector-sidebar'));
+ fireEvent.click(screen.getByRole('button',{name:'돌아가기'}));
  fireEvent.click(screen.getByRole('button',{name:/현장 일정 캘린더/}));
+ await screen.findByRole('heading',{name:'현장 일정 캘린더'});
+ fireEvent.click(screen.getByRole('button',{name:'설정',exact:true}));
+ await screen.findByRole('heading',{name:/설정 v/});
+ fireEvent.click(screen.getByRole('button',{name:'돌아가기'}));
  await screen.findByRole('heading',{name:'현장 일정 캘린더'});
  fireEvent.click(screen.getByRole('button',{name:'서비스 선택',exact:true}));
  fireEvent.click(screen.getByRole('button',{name:/현장점검/}));
@@ -80,7 +100,8 @@ try{
   render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{}}));
   await screen.findByRole('heading',{name:'점검 기록'});
   const sidebar=document.querySelector('aside');
-  assert.equal(screen.getByRole('button',{name:'새 점검',exact:true}).disabled,!write);
+  assert.equal(!!screen.queryByRole('button',{name:'새 점검',exact:true}),write);
+  if(role==='owner')assert(!within(sidebar).queryByRole('button',{name:/현재 사용자/}));
   assert(!within(sidebar).queryByRole('button',{name:'점검자 추가',exact:true}));
   assert(!within(sidebar).queryByRole('button',{name:/점검자 삭제/}));
   assert.equal(!!within(sidebar).queryByRole('button',{name:/다른 점검자/}),viewAll);
@@ -104,13 +125,36 @@ try{
   assert(!document.querySelector('main > .cloud-settings'));
   assert(!document.querySelector('main > .page-heading'));
 
-  await waitFor(()=>assert.equal(!!screen.queryByRole('searchbox',{name:'계정 검색'}),users));
+  assert.equal(!!screen.queryByRole('button',{name:'사용자 관리',exact:true}),users);
+  if(users){
+   fireEvent.click(screen.getByRole('button',{name:'사용자 관리',exact:true}));
+   await screen.findByRole('searchbox',{name:'계정 검색'});
+   if(role==='owner'){
+    fireEvent.click(await screen.findByRole('button',{name:'등급 변경 테스트 계정 상세'}));
+    fireEvent.click(screen.getByRole('button',{name:'등급·상태'}));
+    fireEvent.click(screen.getByRole('button',{name:'관리자로 변경'}));
+    const dialog=await screen.findByRole('dialog',{name:'관리자로 변경'});
+    fireEvent.change(within(dialog).getByLabelText('변경 사유'),{target:{value:'현장 운영 담당'}});
+    fireEvent.click(within(dialog).getByRole('button',{name:'변경 확인'}));
+    await within(dialog).findByRole('alert');
+    fireEvent.click(within(dialog).getByRole('button',{name:'변경 확인'}));
+    await screen.findByText('등급 변경 테스트 · 관리자로 변경 완료');
+    const row=screen.getByRole('button',{name:'등급 변경 테스트 계정 상세'}).closest('[role=row]');
+    assert(within(row).getByText('관리자'));
+   }
+   fireEvent.click(screen.getByRole('button',{name:'일반 설정',exact:true}));
+  }
   fireEvent.click(screen.getByRole('button',{name:'내 변경이력 보기'}));
   await screen.findByText('표시할 변경이력이 없습니다.');
 
   assert(!screen.queryByLabelText('관리자 PIN'));assert(!screen.queryByRole('button',{name:'관리자 로그인',exact:true}));
   assert.equal(!!screen.queryByRole('heading',{name:'관리자 메뉴 · 현장 관리'}),sites);
-  assert.equal(!!screen.queryByRole('heading',{name:'어드민 전용 메뉴'}),role==='owner');
+  assert.equal(!!screen.queryByRole('button',{name:'어드민 도구'}),role==='owner');
+  if(role==='owner'){
+   fireEvent.click(screen.getByRole('button',{name:'어드민 도구'}));
+   await screen.findByRole('heading',{name:'어드민 전용 메뉴'});
+   fireEvent.click(screen.getByRole('button',{name:'일반 설정',exact:true}));
+  }
   const axe=(await import('axe-core')).default;
   let audit;await act(async()=>{audit=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']},rules:{'color-contrast':{enabled:false}}});});
   assert.deepEqual(audit.violations.map(value=>({id:value.id,nodes:value.nodes.map(node=>node.target)})),[]);

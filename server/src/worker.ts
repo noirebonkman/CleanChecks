@@ -248,23 +248,32 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const targetAccount = await env.DB.prepare('SELECT * FROM accounts WHERE id=? AND deleted_at IS NULL').bind(target).first<Account>();
         if (!targetAccount || targetAccount.role === 'owner' || (targetAccount.role === 'admin' && account.role !== 'owner'))
             throw new ApiError(404, '점검자 계정이 없습니다.');
+        const reason = typeof body.reason === 'string' ? text(body.reason,'변경 사유',1000,true).trim() : '계정 관리';
+        const at = now();
+        const statements: ReturnType<typeof env.DB.prepare>[] = [];
         if (body.role !== undefined) {
             if (account.role !== 'owner' || !['admin','inspector'].includes(String(body.role)))
                 throw new ApiError(403, '권한 변경은 어드민만 가능합니다.');
-            await env.DB.batch([
-                env.DB.prepare('UPDATE accounts SET role=? WHERE id=?').bind(body.role, target),
-                env.DB.prepare('INSERT INTO account_permissions(account_id,view_all_records,write_own_records,manage_sites,manage_users,revision,operation_id,updated_by,updated_at) VALUES(?,NULL,NULL,NULL,NULL,1,?,?,?) ON CONFLICT(account_id) DO UPDATE SET view_all_records=NULL,write_own_records=NULL,manage_sites=NULL,manage_users=NULL,revision=account_permissions.revision+1,operation_id=excluded.operation_id,updated_by=excluded.updated_by,updated_at=excluded.updated_at').bind(target,crypto.randomUUID(),account.id,now()),
-                env.DB.prepare('DELETE FROM sessions WHERE account_id=?').bind(target),
-                audit(env, account.id, 'account-role-changed', target)
-            ]);
-        } else if (typeof body.active === 'boolean')
-            await env.DB.batch([env.DB.prepare('UPDATE accounts SET active=? WHERE id=?').bind(body.active ? 1 : 0, target), env.DB.prepare('DELETE FROM sessions WHERE account_id=?').bind(target), audit(env, account.id, body.active ? 'account-enabled' : 'account-disabled', target)]);
-        else if (body.password)
-            await env.DB.batch([env.DB.prepare('UPDATE accounts SET password_hash=?,must_change_password=1,temporary_expires_at=? WHERE id=?').bind(await passwordHash(password(body.password)), Date.now()+7*86400000, target), env.DB.prepare('DELETE FROM sessions WHERE account_id=?').bind(target), audit(env, account.id, 'password-reset', target)]);
-        else
-            throw new ApiError(400, '변경할 값을 확인해 주세요.');
-        await env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) VALUES(?,?,?,?,?,?)').bind(crypto.randomUUID(),account.id,target,'account-management',await seal({reason:typeof body.reason==='string'?text(body.reason,'변경 사유',1000,true):'계정 관리',fields:Object.keys(body).filter(key=>key!=='password'),name:await open<string>(targetAccount.display_name,env),...(body.role!==undefined?{beforeRole:targetAccount.role,afterRole:body.role,resetPermissions:true}:{})},env),now()).run();
-        return send({ ok: true });
+            if (body.role === targetAccount.role) throw new ApiError(409, '이미 해당 등급입니다. 목록을 새로고침해 주세요.');
+            statements.push(
+                env.DB.prepare('UPDATE accounts SET role=? WHERE id=?').bind(body.role,target),
+                env.DB.prepare('INSERT INTO account_permissions(account_id,view_all_records,write_own_records,manage_sites,manage_users,revision,operation_id,updated_by,updated_at) VALUES(?,NULL,NULL,NULL,NULL,1,?,?,?) ON CONFLICT(account_id) DO UPDATE SET view_all_records=NULL,write_own_records=NULL,manage_sites=NULL,manage_users=NULL,revision=account_permissions.revision+1,operation_id=excluded.operation_id,updated_by=excluded.updated_by,updated_at=excluded.updated_at').bind(target,crypto.randomUUID(),account.id,at),
+                audit(env,account.id,'account-role-changed',target),
+            );
+        } else if (typeof body.active === 'boolean') {
+            statements.push(env.DB.prepare('UPDATE accounts SET active=? WHERE id=?').bind(body.active ? 1 : 0,target),
+                audit(env,account.id,body.active ? 'account-enabled' : 'account-disabled',target));
+        } else if (body.password) {
+            statements.push(env.DB.prepare('UPDATE accounts SET password_hash=?,must_change_password=1,temporary_expires_at=? WHERE id=?')
+                .bind(await passwordHash(password(body.password)),Date.now()+7*86400000,target),audit(env,account.id,'password-reset',target));
+        } else throw new ApiError(400,'변경할 값을 확인해 주세요.');
+        const detail = await seal({ reason,fields:Object.keys(body).filter(key=>key!=='password'),name:await open<string>(targetAccount.display_name,env),
+            ...(body.role!==undefined ? {beforeRole:targetAccount.role,afterRole:body.role,resetPermissions:true} : {}) },env);
+        await env.DB.batch([...statements,env.DB.prepare('DELETE FROM sessions WHERE account_id=?').bind(target),
+            env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) VALUES(?,?,?,?,?,?)')
+                .bind(crypto.randomUUID(),account.id,target,'account-management',detail,at)]);
+        const updated = await env.DB.prepare(accountSelection + ' WHERE a.id=?').bind(target).first<Account>();
+        return send({ ok:true, user:updated ? await publicAccount(updated,env) : undefined });
     }
     if (path === '/api/my-history' && method === 'GET') {
         const rows = await env.DB.prepare('SELECT action,target_id,at FROM audit WHERE actor_id=? ORDER BY at DESC LIMIT 200').bind(account.id).all();

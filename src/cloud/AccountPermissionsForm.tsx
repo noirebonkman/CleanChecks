@@ -14,7 +14,9 @@ export function AccountPermissionsForm({ person, disabled, onSave }: Props) {
             <legend>개인별 권한 · {person.name}</legend>
             <p className="hint">등급 기본값을 따르거나, 이 사용자에게만 허용·차단할 수 있습니다.</p>
             {permissionKeys.map(key => <label className="permission-row" key={key}>
-                <span>{permissionLabels[key]}<small>저장 후 적용: {resolvePermissions(person.role, values)[key] ? '허용' : '차단'}</small></span>
+                <span>{permissionLabels[key]}{key === 'manageSites' && <small>캘린더 일정 등록·수정 및 엑셀 가져오기 포함</small>}
+                    <small>현재 {resolvePermissions(person.role, person.permissionOverrides || {})[key] ? '허용' : '차단'}
+                        {' → 저장 후 '}{resolvePermissions(person.role, values)[key] ? '허용' : '차단'}</small></span>
                 <select aria-label={person.name + ' ' + permissionLabels[key]} value={values[key] === null ? 'default' : values[key] ? 'allow' : 'deny'}
                     onChange={event => setValues(previous => ({ ...previous, [key]: event.target.value === 'default' ? null : event.target.value === 'allow' }))}>
                     <option value="default">기본 ({defaults[key] ? '허용' : '차단'})</option>

@@ -1,7 +1,6 @@
 import { download } from '../local-storage';
 import { shiftDay, visitLabel, weekdays, workColors, workKinds, type Visit } from './calendar-model';
 
-type CalendarCell = { text: string; color: number };
 type Week = { days: string[]; entries: Visit[][] };
 
 function makeWeeks(month: string, days: string[], visits: Map<string, Visit[]>): Week[] {
@@ -14,80 +13,99 @@ function makeWeeks(month: string, days: string[], visits: Map<string, Visit[]>):
 }
 
 async function spreadsheet(title: string, month: string, weeks: Week[]) {
-    const XLSX = await import('xlsx');
     const { default: Zip } = await import('jszip');
-    const rows: CalendarCell[][] = [
-        [{ text:title, color:3 }],
-        workKinds.map((text,color) => ({ text,color })),
-        weekdays.map(text => ({ text,color:3 })),
-    ];
-    for (const week of weeks) {
-        rows.push(week.days.map(date => ({text:date.startsWith(month) ? date : '',color:3})));
-        const count = Math.max(3,...week.entries.map(entries => entries.length));
-        for (let index = 0; index < count; index++) rows.push(week.entries.map(entries => {
-            const visit = entries[index];
-            return visit ? {text:visitLabel(visit),color:workKinds.indexOf(visit.kind)} : {text:'',color:4};
-        }));
-    }
-    const workbook = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet(rows.map(row => row.map(cell => cell.text)));
-    sheet['!cols'] = weekdays.map(() => ({wch:31}));
-    sheet['!merges'] = [XLSX.utils.decode_range('A1:G1')];
-    sheet['!rows'] = rows.map((row,index) => ({
-        hpt:index === 0 ? 30 : Math.max(18,...row.map(cell => Math.ceil([...cell.text].reduce((width,ch) => width + (ch.charCodeAt(0) > 127 ? 2 : 1),0) / 27) * 15)),
-    }));
-    XLSX.utils.book_append_sheet(workbook,sheet,'월간 스케줄표');
-    const details = [['날짜','시작','종료','현장명','작업명','구분','상태']];
-    for (const week of weeks) for (const entries of week.entries) for (const visit of entries)
-        details.push([visit.occurrenceDate,visit.start,visit.end,visit.siteName,visit.title,visit.kind,visit.state]);
-    const detailSheet = XLSX.utils.aoa_to_sheet(details);
-    detailSheet['!cols'] = [14,9,9,27,30,16,12].map(wch => ({wch}));
-    XLSX.utils.book_append_sheet(workbook,detailSheet,'일정 목록');
-    const zip = await Zip.loadAsync(XLSX.write(workbook,{type:'array',bookType:'xlsx'}));
-    const stylesPath = 'xl/styles.xml', sheetPath = 'xl/worksheets/sheet1.xml';
+    const template = await fetch(new URL('./fm-calendar-template.xlsx',import.meta.url));
+    if (!template.ok) throw Error('FM 엑셀 양식을 불러오지 못했습니다.');
+    const zip = await Zip.loadAsync(await template.arrayBuffer());
     const parser = new DOMParser(), serializer = new XMLSerializer();
-    const styles = parser.parseFromString(await zip.file(stylesPath)!.async('string'),'application/xml');
-    const page = parser.parseFromString(await zip.file(sheetPath)!.async('string'),'application/xml');
-    const ns = styles.documentElement.namespaceURI;
-    const add = (doc: Document, parent: Element, tag: string, attrs: Record<string,string>) => {
-        const node = doc.createElementNS(ns,tag);
-        for (const [key,value] of Object.entries(attrs)) node.setAttribute(key,value);
-        parent.append(node);
-        return node;
-    };
-    const fills = styles.getElementsByTagName('fills')[0], xfs = styles.getElementsByTagName('cellXfs')[0];
-    const borders = styles.getElementsByTagName('borders')[0], borderId = borders.children.length;
-    const border = add(styles,borders,'border',{});
-    for (const side of ['left','right','top','bottom']) {
-        const edge = add(styles,border,side,{style:'thin'});
-        add(styles,edge,'color',{rgb:'FFCDD9E0'});
+    const stylesPath = 'xl/styles.xml', pagePath = 'xl/worksheets/sheet1.xml', listPath = 'xl/worksheets/sheet2.xml';
+    const read = async (path: string) => parser.parseFromString(await zip.file(path)!.async('string'),'application/xml');
+    const [styles,page,list] = await Promise.all([read(stylesPath),read(pagePath),read(listPath)]);
+    const ns = page.documentElement.namespaceURI;
+    function add(parent: Element, name: string, attributes: Record<string,string> = {}) {
+        const element = parent.ownerDocument.createElementNS(ns,name);
+        for (const [key,value] of Object.entries(attributes)) element.setAttribute(key,value);
+        parent.append(element);
+        return element;
     }
-    add(styles,border,'diagonal',{});
-    borders.setAttribute('count',String(borders.children.length));
-    const firstStyle = xfs.children.length;
-    for (const color of [...workColors,'#e6eef4','#ffffff']) {
-        const fillId = fills.children.length;
-        const fill = add(styles,fills,'fill',{});
-        const pattern = add(styles,fill,'patternFill',{patternType:'solid'});
-        add(styles,pattern,'fgColor',{rgb:'FF' + color.slice(1).toUpperCase()});
-        add(styles,pattern,'bgColor',{indexed:'64'});
-        const xf = add(styles,xfs,'xf',{numFmtId:'0',fontId:'0',fillId:String(fillId),borderId:String(borderId),xfId:'0',
-            applyFill:'1',applyBorder:'1',applyAlignment:'1'});
-        add(styles,xf,'alignment',{wrapText:'1',vertical:'center'});
+    function writeCell(cell: Element, value: string) {
+        cell.replaceChildren();
+        cell.removeAttribute('t');
+        if (!value) return;
+        cell.setAttribute('t','inlineStr');
+        const text = add(add(cell,'is'),'t');
+        text.setAttributeNS('http://www.w3.org/XML/1998/namespace','xml:space','preserve');
+        text.textContent = value;
     }
-    fills.setAttribute('count',String(fills.children.length));
+    const data = page.getElementsByTagName('sheetData')[0];
+    const originals = new Map([...data.children].map(row => [Number(row.getAttribute('r')),row]));
+    const titleCell = originals.get(2)!.getElementsByTagName('c')[0];
+    writeCell(titleCell,'                        ' + title.replace(/^FM PARTNERS · /,'').replaceAll(' ','   '));
+    for (const [number,row] of originals) if (number > 4) row.remove();
+    const xfs = styles.getElementsByTagName('cellXfs')[0];
+    const palette = [25,26,435].map(index => xfs.children[index].getAttribute('fillId') || '0');
+    const jobStyles = new Map<string,string>();
+    function jobStyle(original: string, kind: number) {
+        const key = original + ':' + kind;
+        const cached = jobStyles.get(key);
+        if (cached) return cached;
+        const xf = xfs.children[Number(original) || 0].cloneNode(true) as Element;
+        xf.setAttribute('fillId',kind < 0 ? '0' : palette[kind]);
+        xf.setAttribute('applyFill','1');
+        if (kind >= 0) {
+            const alignment = xf.getElementsByTagName('alignment')[0] || add(xf,'alignment');
+            alignment.setAttribute('wrapText','1');
+            xf.setAttribute('applyAlignment','1');
+        }
+        const index = String(xfs.children.length);
+        xfs.append(xf);
+        jobStyles.set(key,index);
+        return index;
+    }
+    let nextRow = 5;
+    function copyRow(source: number) {
+        const row = originals.get(source)!.cloneNode(true) as Element;
+        row.setAttribute('r',String(nextRow));
+        [...row.children].forEach((cell,index) => cell.setAttribute('r','BCDEFGH'[index] + nextRow));
+        data.append(row);
+        nextRow++;
+        return row;
+    }
+    const headers = [5,11,20,27,32,38,44];
+    const details = [['날짜','시작','종료','현장명','작업명','구분','상태']];
+    weeks.forEach((week,index) => {
+        const heading = headers[index], slots = headers[index + 1] - heading - 1;
+        const row = copyRow(heading);
+        [...row.children].forEach((cell,day) => writeCell(cell,week.days[day].startsWith(month) ? week.days[day] : ''));
+        const count = Math.max(slots,...week.entries.map(entries => entries.length));
+        for (let job = 0; job < count; job++) {
+            const offset = job === count - 1 ? slots : Math.min(job + 1,Math.max(1,slots - 1));
+            const row = copyRow(heading + offset);
+            let height = Number(row.getAttribute('ht')) || 16.5;
+            [...row.children].forEach((cell,day) => {
+                const visit = week.entries[day][job];
+                cell.setAttribute('s',jobStyle(cell.getAttribute('s') || '0',visit ? workKinds.indexOf(visit.kind) : -1));
+                if (!visit) return;
+                const label = '*' + visitLabel(visit);
+                writeCell(cell,label);
+                const width = [...label].reduce((sum,ch) => sum + (ch.charCodeAt(0) > 127 ? 2 : 1),0);
+                height = Math.max(height,Math.ceil(width / 34) * 15);
+                details.push([visit.occurrenceDate,visit.start,visit.end,visit.siteName,visit.title,visit.kind,visit.state]);
+            });
+            row.setAttribute('ht',String(height));
+            row.setAttribute('customHeight','1');
+        }
+    });
+    page.getElementsByTagName('dimension')[0].setAttribute('ref','B1:H' + (nextRow - 1));
     xfs.setAttribute('count',String(xfs.children.length));
-    for (const cell of page.getElementsByTagName('c')) {
-        const { r,c } = XLSX.utils.decode_cell(cell.getAttribute('r') || 'A1');
-        cell.setAttribute('s',String(firstStyle + (rows[r]?.[c]?.color ?? 4)));
-    }
-    const properties = add(page,page.documentElement,'sheetPr',{});
-    page.documentElement.prepend(properties);
-    add(page,properties,'pageSetUpPr',{fitToPage:'1'});
-    add(page,page.documentElement,'pageMargins',{left:'.25',right:'.25',top:'.35',bottom:'.35',header:'.15',footer:'.15'});
-    add(page,page.documentElement,'pageSetup',{orientation:'landscape',paperSize:'9',fitToWidth:'1',fitToHeight:'0'});
+    const listData = list.getElementsByTagName('sheetData')[0];
+    details.forEach((values,index) => {
+        const row = add(listData,'row',{r:String(index + 1)});
+        values.forEach((value,column) => writeCell(add(row,'c',{r:'ABCDEFG'[column] + (index + 1)}),value));
+    });
     zip.file(stylesPath,serializer.serializeToString(styles));
-    zip.file(sheetPath,serializer.serializeToString(page));
+    zip.file(pagePath,serializer.serializeToString(page));
+    zip.file(listPath,serializer.serializeToString(list));
     return zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
 

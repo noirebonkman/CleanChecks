@@ -13,6 +13,7 @@ type Configuration = { setupRequired: boolean; turnstileSiteKey: string };
 export function LoginApplication() {
     const [user, setUser] = useState<ServerUser | null>(null);
     const [workspace, setWorkspace] = useState<'menu' | 'inspection' | 'calendar'>('menu');
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [temporaryUser, setTemporaryUser] = useState<ServerUser | null>(null);
     const [configuration, setConfiguration] = useState<Configuration | null>(null);
     const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
@@ -22,7 +23,7 @@ export function LoginApplication() {
     const userRef = useRef<ServerUser | null>(null), changing = useRef(false);
     userRef.current = user;
 
-    const clear = () => { setUser(null); setWorkspace('menu'); setTemporaryUser(null); setError(''); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
+    const clear = () => { setUser(null); setWorkspace('menu'); setSettingsOpen(false); setTemporaryUser(null); setError(''); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
     const enter = async (next: ServerUser, expiry?: number) => {
         expiresAt.current = typeof expiry === 'number' ? expiry : null;
         if (next.mustChangePassword) { setTemporaryUser(next); return; }
@@ -80,14 +81,18 @@ export function LoginApplication() {
         finally { changing.current = false; setBusy(false); setToken(''); setChallengeVersion(value => value + 1); }
     };
     if (user) {
-        if (workspace === 'inspection')
-            return <App key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}/>;
+        if (workspace === 'inspection' || settingsOpen)
+            return <App key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}
+                settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} onCloseSettings={inspect => {
+                    if (inspect) setWorkspace('inspection');
+                    setSettingsOpen(false);
+                }}/>;
         if (workspace === 'calendar')
             return <Suspense fallback={<div className="login-shell" data-theme={readTheme()}><p role="status">캘린더를 여는 중입니다…</p></div>}>
-                <FieldCalendar user={user} onMenu={() => setWorkspace('menu')} onLogout={logout}/>
+                <FieldCalendar user={user} onMenu={() => setWorkspace('menu')} onLogout={logout} onSettings={() => setSettingsOpen(true)}/>
             </Suspense>;
         return <WorkspaceMenu user={user} onInspection={() => setWorkspace('inspection')}
-            onCalendar={() => setWorkspace('calendar')} onLogout={logout}/>;
+            onCalendar={() => setWorkspace('calendar')} onLogout={logout} onSettings={() => setSettingsOpen(true)}/>;
     }
     return <div className="login-shell" data-theme={readTheme()}>
         <main className="login-card" aria-busy={loading || busy}>

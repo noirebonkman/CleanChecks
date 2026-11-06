@@ -32,7 +32,10 @@ export async function receiveManagementRecords(user: ServerUser, current: State)
         ...row.record!, staffId: row.ownerId, photos: row.record!.photos.map(photo => ({...photo, data:''})), serverPhotoCount: row.record!.photoCount || 0,
     }));
     const owners = new Set(others.map(record => record.staffId));
-    const people = users.map(person => ({ id: person.id, name: person.name, active: person.active || owners.has(person.id), salt: '', hash: '' }));
-    if (!people.some(person => person.id === user.id)) people.push({ id: user.id, name: user.name, active: true, salt: '', hash: '' });
+    const people = users.filter(person => person.role !== 'owner').map(person => ({
+        id: person.id, name: person.name, active: person.active || owners.has(person.id), salt: '', hash: '',
+    }));
+    if (user.role !== 'owner' && !people.some(person => person.id === user.id))
+        people.push({ id: user.id, name: user.name, active: true, salt: '', hash: '' });
     return { ...current, staff: people, records: [...current.records.filter(record => record.staffId === user.id), ...others] };
 }

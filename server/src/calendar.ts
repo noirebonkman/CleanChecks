@@ -1,7 +1,7 @@
 import { monthDays, occursOn, occurrenceId, repeatOptions, shiftDay, workKinds, workStates, type Schedule } from '../../src/cloud/calendar-model';
 import { requirePermission } from './account-permissions';
 import type { Account, Environment } from './bindings';
-import { open, seal } from './security';
+import { digest, open, seal } from './security';
 import { ApiError, id, jsonBody, revision, text } from './validation';
 
 function dateValue(value: unknown) {
@@ -35,7 +35,7 @@ function schedule(value: unknown, key: string): Schedule {
         assignee:text(input.assignee ?? '', '담당자',100).trim(), notes:text(input.notes ?? '', '메모',2000) };
 }
 
-type ScheduleRow = { payload: string; revision: number; repeat_rule: string; series_id: string | null };
+type ScheduleRow = { id: string; payload: string; revision: number; repeat_rule: string; series_id: string | null };
 
 async function importSchedules(request: Request, env: Environment) {
     const { schedules } = await jsonBody(request);
@@ -58,12 +58,14 @@ export async function calendarRoute(request: Request, env: Environment, account:
         const month = url.searchParams.get('month') || '';
         if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) throw new ApiError(400, '조회할 월을 확인해 주세요.');
         const days = monthDays(month), first = days[0], last = days[days.length - 1];
-        const { results } = await env.DB.prepare(`SELECT payload,revision FROM calendar_schedules
+        const { results } = await env.DB.prepare(`SELECT id,payload,revision FROM calendar_schedules
             WHERE scheduled_date='' OR scheduled_date BETWEEN ? AND ? OR original_date BETWEEN ? AND ?
             OR (repeat_rule<>'none' AND scheduled_date<=? AND (until_date='' OR until_date>=?))
             ORDER BY scheduled_date,id LIMIT 2001`).bind(first,last,first,last,last,first).all<ScheduleRow>();
         if (results.length > 2000) throw new ApiError(413, '해당 월에 조회할 일정이 너무 많습니다.');
-        return { schedules: await Promise.all(results.map(async row => ({ ...await open<Schedule>(row.payload,env), revision:row.revision }))) };
+        const version = await digest(JSON.stringify(results.map(row => [row.id,row.revision])));
+        if (url.searchParams.get('since') === version) return { version, unchanged:true };
+        return { version, schedules: await Promise.all(results.map(async row => ({ ...await open<Schedule>(row.payload,env), revision:row.revision }))) };
     }
 
     if (url.pathname === '/api/calendar/import' && request.method === 'POST') {

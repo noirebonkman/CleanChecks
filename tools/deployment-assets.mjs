@@ -56,7 +56,7 @@ export function collectBuildFiles(source) {
     for (const entry of Object.values(manifest)) {
         for (const name of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) {
             if (typeof name !== 'string' || !name.startsWith('assets/') ||
-                !bundleExtensions.has(extname(name))) {
+                (!bundleExtensions.has(extname(name)) && !/^assets\/fm-calendar-template-v\d+(?:\.\d+)+\.xlsx$/.test(name))) {
                 throw Error('빌드 목록에 허용되지 않은 파일이 있습니다.');
             }
             checkedFile(source, name);

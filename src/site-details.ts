@@ -18,5 +18,8 @@ export function isContractExpired(site: Site, now = new Date()): boolean {
 }
 
 export function siteLocation(site: Site): string {
-    return [site.zone, site.address].filter(Boolean).join(' · ');
+    return [site.zone, site.address].filter(value => knownValue(value) !== '미확인').join(' · ');
 }
+
+export const knownValue = (value?: string | null) =>
+    !value?.trim() || value.trim() === '무자료' ? '미확인' : value;
