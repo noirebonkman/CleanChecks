@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Download, LogOut, MapPin, Plus, Search, Settings } from 'lucide-react';
+import { ArrowLeft, CalendarCheck, ChevronLeft, ChevronRight, Download, LogOut, MapPin, Plus, Search, Settings, SlidersHorizontal, MoreHorizontal, Upload } from 'lucide-react';
 import { hasPermission } from '../access-control';
 import type { Site } from '../inspection-model';
 import { readTheme } from '../preferences';
@@ -34,6 +34,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     const [assignee, setAssignee] = useState('');
     const [status, setStatus] = useState('');
     const [showUnassigned, setShowUnassigned] = useState(false);
+    const [utilityPanel, setUtilityPanel] = useState<'filters' | 'options' | null>(null);
     const [reminder, setReminder] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [active, setActive] = useState<Visit | null>(null);
@@ -102,6 +103,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     const names = [...new Set([assignee,...(ready ? rows.flatMap(row => [row.assignee,...(row.previousRules || []).map(rule => rule.assignee)]) : [])]
         .filter(Boolean))].sort((a,b) => a.localeCompare(b,'ko'));
     const search = query.trim().toLowerCase();
+    const filterCount = [search,kind,assignee,status,showUnassigned].filter(Boolean).length;
     const filter = (row: SavedSchedule) => (!kind || row.kind === kind) && (!assignee || row.assignee === assignee)
         && (!status || row.state === status) && (!showUnassigned || !row.assignee)
         && [row.siteName,row.title,row.assignee,row.address].some(value => value.toLowerCase().includes(search));
@@ -178,44 +180,50 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     return <div className="login-shell calendar-shell" data-theme={readTheme()}>
         <main className="field-calendar" aria-labelledby="field-calendar-title">
             <header className="calendar-header">
-                <div>
-                    <button className="calendar-plain" onClick={onMenu}><ArrowLeft size={17}/>서비스 선택</button>
-                    <h1 id="field-calendar-title" ref={heading} tabIndex={-1}><CalendarDays size={24}/>현장 일정 캘린더</h1>
-                </div>
+                <button className="header-icon-button" aria-label="서비스 선택" title="서비스 선택" onClick={onMenu}><ArrowLeft size={21} aria-hidden="true"/></button>
+                <h1 id="field-calendar-title" ref={heading} tabIndex={-1}>현장 일정 캘린더</h1>
                 <div className="calendar-actions">
-                    {canEdit && <button disabled={!ready} onClick={() => setImportOpen(true)}>엑셀 가져오기</button>}
-                    {canEdit && <button className="schedule-primary" disabled={!ready} onClick={() => openEditor(newSchedule(day))}><Plus size={17}/>일정 추가</button>}
-                    {onSettings && <button disabled={working} onClick={onSettings}><Settings size={16}/>설정</button>}
-                    <button disabled={working} onClick={() => void act(onLogout)}><LogOut size={16}/>로그아웃</button>
+                    {canEdit && <button className="header-icon-button schedule-primary" aria-label="일정 추가" title="일정 추가"
+                        disabled={!ready} onClick={() => openEditor(newSchedule(day))}><Plus size={22} aria-hidden="true"/></button>}
+                    {onSettings && <button className="header-icon-button" aria-label="설정" title="설정" disabled={working}
+                        onClick={onSettings}><Settings size={21} aria-hidden="true"/></button>}
                 </div>
             </header>
             <div className="calendar-toolbar">
-                <div className="calendar-actions">
-                    <button aria-label={view === 'week' ? '이전 주' : '이전 달'} onClick={() => movePeriod(-1)}><ChevronLeft size={19}/></button>
+                <div className="calendar-actions calendar-period">
+                    <button className="header-icon-button" aria-label={view === 'week' ? '이전 주' : '이전 달'} onClick={() => movePeriod(-1)}><ChevronLeft size={19} aria-hidden="true"/></button>
                     <h2>{view === 'week' ? dayLabel(visibleDays[0]) + '–' + dayLabel(visibleDays[6]) : monthLabel(month)}</h2>
-                    <button aria-label={view === 'week' ? '다음 주' : '다음 달'} onClick={() => movePeriod(1)}><ChevronRight size={19}/></button>
-                    <button onClick={() => goMonth(todayKey().slice(0,7))}>오늘</button>
-                    <label className="calendar-select"><span>월 이동</span><input type="month" min="2000-01" max="2099-12" value={month}
-                        onChange={event => goMonth(event.target.value)}/></label>
+                    <button className="header-icon-button" aria-label={view === 'week' ? '다음 주' : '다음 달'} onClick={() => movePeriod(1)}><ChevronRight size={19} aria-hidden="true"/></button>
                 </div>
-                <div className="calendar-actions">
-                    <label className="calendar-select"><span>보기</span><select value={view} onChange={event => setView(event.target.value as typeof view)}>
+                <div className="calendar-actions calendar-utilities">
+                    <label className="calendar-select calendar-view"><select aria-label="보기" value={view} onChange={event => setView(event.target.value as typeof view)}>
                         <option value="month">월간</option><option value="week">주간</option><option value="list">목록</option>
                     </select></label>
-                    <button disabled={!ready || working} onClick={() => download('xlsx')}><Download size={16}/>엑셀</button>
-                    <button disabled={!ready || working} onClick={() => download('png')}><Download size={16}/>이미지</button>
-                    <details className="calendar-export-options">
-                        <summary>캘린더 파일</summary>
-                        <div>
-                            <label><input type="checkbox" checked={reminder} onChange={event => setReminder(event.target.checked)}/> 시작 1시간 전 알림 포함</label>
-                            <button disabled={!ready || working} onClick={() => download('ics')}><Download size={16}/>ICS 내려받기</button>
-                            <small>가져온 일정은 CleanChecks와 자동 동기화되지 않습니다.</small>
-                        </div>
-                    </details>
+                    <button className="header-icon-button calendar-filter-toggle" aria-label="필터" title="필터" aria-expanded={utilityPanel === 'filters'} aria-controls="calendar-filter-panel"
+                        aria-describedby={filterCount ? 'calendar-filter-count' : undefined}
+                        onClick={() => setUtilityPanel(current => current === 'filters' ? null : 'filters')}>
+                        <SlidersHorizontal size={20} aria-hidden="true"/>
+                        {!!filterCount && <span id="calendar-filter-count" className="calendar-filter-count">{filterCount}</span>}
+                    </button>
+                    <button className="header-icon-button" aria-label="일정 옵션" title="일정 옵션" aria-expanded={utilityPanel === 'options'} aria-controls="calendar-option-panel"
+                        onClick={() => setUtilityPanel(current => current === 'options' ? null : 'options')}><MoreHorizontal size={22} aria-hidden="true"/></button>
                 </div>
             </div>
-            <div className="calendar-filters">
-                <label className="calendar-search"><Search size={17}/><input aria-label="일정 검색" placeholder="현장명, 작업명, 담당자" value={query} onChange={e => setQuery(e.target.value)}/></label>
+            <section id="calendar-option-panel" className="calendar-panel calendar-options" aria-label="일정 옵션" hidden={utilityPanel !== 'options'}>
+                <button onClick={() => {goMonth(todayKey().slice(0,7));setUtilityPanel(null);}}><CalendarCheck size={19} aria-hidden="true"/>오늘</button>
+                <label className="calendar-select"><span>월 이동</span><input type="month" min="2000-01" max="2099-12" value={month}
+                    onChange={event => goMonth(event.target.value)}/></label>
+                <div className="calendar-actions">
+                    {canEdit && <button disabled={!ready} onClick={() => {setImportOpen(true);setUtilityPanel(null);}}><Upload size={16} aria-hidden="true"/>엑셀 가져오기</button>}
+                    <button disabled={!ready || working} onClick={() => download('xlsx')}><Download size={16} aria-hidden="true"/>엑셀 저장</button>
+                    <button disabled={!ready || working} onClick={() => download('png')}><Download size={16} aria-hidden="true"/>이미지 저장</button>
+                    <button disabled={!ready || working} onClick={() => download('ics')}><Download size={16} aria-hidden="true"/>ICS 저장</button>
+                </div>
+                <label className="calendar-reminder"><input type="checkbox" checked={reminder} onChange={event => setReminder(event.target.checked)}/> ICS에 시작 1시간 전 알림 포함</label>
+                <button className="calendar-option-logout" disabled={working} onClick={() => void act(onLogout)}><LogOut size={16} aria-hidden="true"/>로그아웃</button>
+            </section>
+            <section id="calendar-filter-panel" className="calendar-panel calendar-filters" aria-label="일정 필터" hidden={utilityPanel !== 'filters'}>
+                <label className="calendar-search"><Search size={17} aria-hidden="true"/><input aria-label="일정 검색" placeholder="현장명, 작업명, 담당자" value={query} onChange={e => setQuery(e.target.value)}/></label>
                 <label className="calendar-select"><span>구분</span><select value={kind} onChange={e => setKind(e.target.value)}>
                     <option value="">전체</option>{workKinds.map(kind => <option key={kind}>{kind}</option>)}
                 </select></label>
@@ -226,10 +234,10 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                     <option value="">전체</option>{workStates.map(state => <option key={state}>{state}</option>)}
                 </select></label>
                 <button aria-pressed={showUnassigned} onClick={() => { setAssignee(''); setShowUnassigned(value => !value); }}>담당 미배정</button>
-                {(query || kind || assignee || status || showUnassigned) && <button onClick={() => {
+                {!!filterCount && <button onClick={() => {
                     setQuery(''); setKind(''); setAssignee(''); setStatus(''); setShowUnassigned(false);
                 }}>필터 초기화</button>}
-            </div>
+            </section>
             {ready && <div className="calendar-summary" aria-label="월간 일정 현황">
                 <span>월간 일정 <strong>{monthVisits.length}</strong></span>
                 <span>완료 <strong>{completed}</strong></span>

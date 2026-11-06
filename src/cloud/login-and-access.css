@@ -46,7 +46,13 @@
 
 .workspace-card { width:min(100%,44rem); }
 .workspace-card #workspace-title:focus { outline:none; }
-.workspace-header-actions { display:flex; flex-wrap:wrap; gap:1rem; }
+.workspace-header-actions { display:flex; flex-wrap:wrap; gap:.35rem; }
+button.header-icon-button {
+    display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center;
+    inline-size:44px; block-size:44px; padding:0; border:1px solid var(--line); border-radius:.6rem;
+    background:var(--surface); color:var(--accent);
+}
+button.header-icon-button:hover:not(:disabled) { background:var(--soft); }
 .workspace-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem 1rem; margin-bottom:1.5rem; }
 .workspace-header .login-logo,.workspace-header .text-button { margin:0; }
 .workspace-card > .text-button { margin:0 0 .75rem; }

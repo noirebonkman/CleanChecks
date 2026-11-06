@@ -29,8 +29,8 @@ export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout, onSett
             <header className="workspace-header">
                 <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
                 <div className="workspace-header-actions">
-                    <button className="text-button" disabled={loggingOut} onClick={onSettings}><Settings size={17}/>설정</button>
-                    <button className="text-button" disabled={loggingOut} onClick={() => void logout()}><LogOut size={17}/>로그아웃</button>
+                    <button className="header-icon-button" aria-label="설정" title="설정" disabled={loggingOut} onClick={onSettings}><Settings size={21} aria-hidden="true"/></button>
+                    <button className="header-icon-button" aria-label="로그아웃" title="로그아웃" disabled={loggingOut} onClick={() => void logout()}><LogOut size={21} aria-hidden="true"/></button>
                 </div>
             </header>
             <h1 id="workspace-title" ref={heading} tabIndex={-1}>서비스 선택</h1>
