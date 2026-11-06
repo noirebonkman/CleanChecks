@@ -225,7 +225,8 @@ async function route(request: Request, env: Environment): Promise<Response> {
             permissionKeys.some(key => values[key] !== null && typeof values[key] !== 'boolean'))
             throw new ApiError(400, '권한 항목과 허용·차단 값을 확인해 주세요.');
         const overrides = values as PermissionOverrides, expected = revision(body.revision);
-        const reason = text(body.reason, '권한 변경 사유', 1000, true), operation = crypto.randomUUID(), at = now();
+        const reason = body.reason === undefined ? undefined : text(body.reason,'권한 변경 사유',1000,true).trim();
+        const operation = crypto.randomUUID(), at = now();
         const flags = permissionKeys.map(key => overrides[key] === null ? null : overrides[key] ? 1 : 0);
         const condition = 'SELECT 1 FROM account_permissions WHERE account_id=? AND operation_id=?';
         const saved = await env.DB.batch([
@@ -237,7 +238,8 @@ async function route(request: Request, env: Environment): Promise<Response> {
             env.DB.prepare('INSERT INTO owner_actions SELECT ?,?,?,?,?,? WHERE EXISTS(' + condition + ')').bind(crypto.randomUUID(),account.id,target,'account-permissions-changed',await seal({name:await open<string>(person.display_name,env),reason,before:overridesFor(person),after:overrides},env),at,target,operation),
         ]);
         if (saved[0].meta.changes !== 1) throw new ApiError(409, '다른 화면에서 권한이 변경되었습니다. 계정 목록을 다시 불러와 주세요.');
-        return send({ ok: true, revision: expected + 1 });
+        const updated = await env.DB.prepare(accountSelection + ' WHERE a.id=?').bind(target).first<Account>();
+        return send({ ok:true, revision:expected + 1, user:updated ? await publicAccount(updated,env) : undefined });
     }
     const accountMatch = /^\/api\/accounts\/([a-zA-Z0-9_-]+)$/.exec(path);
     if (accountMatch && method === 'PATCH') {
@@ -248,7 +250,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const targetAccount = await env.DB.prepare('SELECT * FROM accounts WHERE id=? AND deleted_at IS NULL').bind(target).first<Account>();
         if (!targetAccount || targetAccount.role === 'owner' || (targetAccount.role === 'admin' && account.role !== 'owner'))
             throw new ApiError(404, '점검자 계정이 없습니다.');
-        const reason = typeof body.reason === 'string' ? text(body.reason,'변경 사유',1000,true).trim() : '계정 관리';
+        const reason = typeof body.reason === 'string' ? text(body.reason,'변경 사유',1000,true).trim() : undefined;
         const at = now();
         const statements: ReturnType<typeof env.DB.prepare>[] = [];
         if (body.role !== undefined) {
