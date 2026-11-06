@@ -1,11 +1,13 @@
 import type { Site } from '../inspection-model';
-import { workKinds, workStates, type ScheduleRule } from './calendar-model';
+import { shiftDay, workKinds, workStates, type ScheduleRule } from './calendar-model';
 
 export type ImportRow = Pick<ScheduleRule,'date'|'start'|'end'|'siteId'|'siteName'|'title'|'kind'|'state'|'address'|'assignee'|'notes'> & {
     source: string;
     review: string;
 };
 const normalized = (value: string) => value.normalize('NFKC').replace(/\s+/g,'').toLowerCase();
+type WorkbookReader = typeof import('xlsx');
+type Workbook = import('xlsx').WorkBook;
 const clock = (value: string) => {
     const match = /^(\d{1,2}):([0-5]\d)(?::[0-5]\d)?$/.exec(value.trim());
     return match && Number(match[1]) < 24 ? match[1].padStart(2,'0') + ':' + match[2] : '';
@@ -18,10 +20,28 @@ function dateCell(value: string) {
     return Number.isFinite(+date) && date.toISOString().slice(0,10) === key ? key : '';
 }
 
-export async function readScheduleWorkbook(file: File, sites: Site[]) {
+export async function openScheduleWorkbook(file: File) {
     if (file.size > 5_000_000) throw Error('5MB 이하 엑셀 파일을 선택해 주세요.');
-    const XLSX = await import('xlsx');
-    const workbook = XLSX.read(await file.arrayBuffer(),{type:'array',cellStyles:true,sheetRows:1500});
+    const spreadsheet = await import('xlsx');
+    const XLSX = spreadsheet.SSF ? spreadsheet : (spreadsheet as WorkbookReader & { default: WorkbookReader }).default;
+    const workbook = XLSX.read(await file.arrayBuffer(),{type:'array',cellStyles:true,cellNF:true,sheetRows:1500});
+    return {
+        sheetNames:workbook.SheetNames,
+        read:(sheetName: string, sites: Site[]) => readScheduleSheet(XLSX,workbook,sheetName,sites),
+    };
+}
+
+export function preferredScheduleSheet(names: string[], month: string) {
+    const [year, number] = month.split('-').map(Number);
+    return names.find(name => name === '일정 목록')
+        || names.find(name => {
+            const match = /^(?:20)?(\d{2})-(\d{1,2})$/.exec(name.trim());
+            return !!match && Number(match[1]) === year % 100 && Number(match[2]) === number;
+        })
+        || names[0] || '';
+}
+
+function readScheduleSheet(XLSX: WorkbookReader, workbook: Workbook, sheetName: string, sites: Site[]) {
     const output: ImportRow[] = [], issues: string[] = [];
     const add = (row: ImportRow) => {
         const matches = sites.filter(site => normalized(site.name) === normalized(row.siteName));
@@ -32,8 +52,7 @@ export async function readScheduleWorkbook(file: File, sites: Site[]) {
         } else if (matches.length > 1) row.review = [row.review,'같은 이름의 등록 현장이 여러 곳입니다.'].filter(Boolean).join(' ');
         output.push(row);
     };
-    const structured = workbook.Sheets['일정 목록'];
-    const names = structured ? ['일정 목록'] : workbook.SheetNames;
+    const names = workbook.SheetNames.filter(name => name === sheetName);
     for (const name of names) {
         const sheet = workbook.Sheets[name];
         if (!sheet['!ref']) continue;
@@ -44,6 +63,13 @@ export async function readScheduleWorkbook(file: File, sites: Site[]) {
         range.s = {r:0,c:0};
         const rows = XLSX.utils.sheet_to_json<string[]>(sheet,{header:1,raw:false,defval:'',blankrows:true,dateNF:'yyyy-mm-dd',range});
         const string = (value: unknown) => String(value ?? '').trim();
+        const at = (row: number,column: number) => sheet[XLSX.utils.encode_cell({r:row,c:column})];
+        const readDate = (row: number, column: number, display: string) => {
+            const cell = at(row,column);
+            if (cell?.t !== 'n' || !cell.z || !XLSX.SSF.is_date(cell.z)) return dateCell(display);
+            const parts = XLSX.SSF.parse_date_code(cell.v,{date1904:!!workbook.Workbook?.WBProps?.date1904});
+            return parts ? dateCell([parts.y,parts.m,parts.d].join('-')) : '';
+        };
         const header = rows.findIndex(row => row.map(string).includes('날짜') && row.map(string).includes('현장명') && row.map(string).includes('작업명'));
         if (header >= 0) {
             const titles = rows[header].map(string);
@@ -51,7 +77,7 @@ export async function readScheduleWorkbook(file: File, sites: Site[]) {
                 const row = rows[index], cell = (name: string) => string(row[titles.indexOf(name)]);
                 if (!row.some(value => string(value))) continue;
                 const source = name + ' ' + (index + 1) + '행';
-                const date = dateCell(cell('날짜')), start = clock(cell('시작')), end = clock(cell('종료'));
+                const date = readDate(index,titles.indexOf('날짜'),cell('날짜')), start = clock(cell('시작')), end = clock(cell('종료'));
                 const kind = workKinds.find(kind => normalized(kind) === normalized(cell('구분')));
                 if ((cell('날짜') && !date) || (cell('시작') && !start) || (cell('종료') && (!end || !start || end <= start))
                     || (!date && start) || !cell('현장명') || !cell('작업명')) {
@@ -69,7 +95,7 @@ export async function readScheduleWorkbook(file: File, sites: Site[]) {
             weekday(cell) === '월' && ['화','수','목','금','토','일'].every((day,offset) => weekday(row[column + offset + 1]) === day)));
         if (weekdayRow < 0) { issues.push(name + ' 시트에서 일정표를 찾지 못했습니다.'); continue; }
         const first = rows[weekdayRow].findIndex(cell => weekday(cell) === '월');
-        const fill = (row: number,column: number) => sheet[XLSX.utils.encode_cell({r:row,c:column})]?.s?.fgColor?.rgb as string | undefined;
+        const fill = (row: number,column: number) => at(row,column)?.s?.fgColor?.rgb as string | undefined;
         const colors = new Map<string,ImportRow['kind']>();
         rows.slice(0,weekdayRow).forEach((row,index) => row.forEach((value,column) => {
             const kind = workKinds.find(kind => normalized(kind) === normalized(string(value)));
@@ -80,11 +106,25 @@ export async function readScheduleWorkbook(file: File, sites: Site[]) {
         for (let index = weekdayRow + 1; index < rows.length; index++) {
             const row = rows[index];
             const cells = Array.from({length:7},(_,column) => string(row[first + column]));
-            const dayKeys = cells.map(dateCell);
-            if (dayKeys.some(Boolean) && cells.every((cell,column) => !cell || !!dayKeys[column])) { dates = dayKeys; continue; }
+            const dayKeys = cells.map((cell,column) => readDate(index,first + column,cell));
+            // A week header can contain a holiday name after one date. Require other dates on that row.
+            if (dayKeys.filter(Boolean).length >= 2) {
+                cells.forEach((cell,column) => {
+                    if (!dayKeys[column]) dayKeys[column] = dateCell(/^20\d{2}-\d{1,2}-\d{1,2}(?=\s|\()/.exec(cell)?.[0] || '');
+                });
+            }
+            const anchor = dayKeys.findIndex(Boolean);
+            if (anchor >= 0 && cells.every((cell,column) => !cell || dayKeys[column] === shiftDay(dayKeys[anchor],column - anchor))) {
+                dates = dayKeys;
+                continue;
+            }
             cells.forEach((cell,column) => {
                 if (!cell) return;
                 const source = name + ' ' + XLSX.utils.encode_cell({r:index,c:first + column});
+                if (dayKeys[column] || at(index,first + column)?.t === 'n') {
+                    issues.push(source + '의 날짜 또는 시간 옆 작업 내용을 확인해 주세요.');
+                    return;
+                }
                 if (!dates[column]) { issues.push(source + '의 날짜를 확인해 주세요.'); return; }
                 const kind = colors.get(fill(index,first + column) || '');
                 // One worksheet cell is one job. Keep multi-line descriptions together.
@@ -97,7 +137,7 @@ export async function readScheduleWorkbook(file: File, sites: Site[]) {
                 add({date:dates[column],start,end:'',source,siteId:'',siteName:site?.name || description.slice(0,200),
                     title:kind || '현장 작업',address:'',assignee:'',notes:site ? '' : description.slice(0,2000),
                     kind:kind || '자체 작업',state:'예정',
-                    review:[!site && '현장명과 작업명을 확인해 주세요.',!kind && '작업 구분을 확인해 주세요.'].filter(Boolean).join(' ')});
+                    review:kind ? '' : '작업 구분을 확인해 주세요.'});
             });
         }
     }

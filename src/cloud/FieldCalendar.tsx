@@ -282,7 +282,8 @@ export function FieldCalendar({ user, onMenu, onLogout }: { user: ServerUser; on
                 onClose={() => setEditor(null)} onSave={value => save(value,effectiveDate)} onDelete={remove}
                 onSeries={editor.seriesId && parent ? () => openEditor(parent) : undefined}
                 onFuture={editor.seriesId && parent && active && !active.seriesId ? editFuture : undefined}/>}
-            {importOpen && <CalendarImportDialog sites={sites} onClose={() => setImportOpen(false)} onImported={message => {
+            {importOpen && <CalendarImportDialog sites={sites} month={month} onClose={() => setImportOpen(false)} onImported={(message, importedMonth) => {
+                if (importedMonth && importedMonth !== month) goMonth(importedMonth);
                 setImportOpen(false); setNotice(message); refresh(value => value + 1);
             }}/>}
         </main>

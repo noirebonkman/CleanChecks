@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Site } from '../inspection-model';
 import { workKinds } from './calendar-model';
-import { importSchedule, readScheduleWorkbook, type ImportRow } from './calendar-import';
+import { importSchedule, openScheduleWorkbook, preferredScheduleSheet, type ImportRow } from './calendar-import';
 import { post } from './client';
 
 type PreviewRow = ImportRow & { include: boolean };
 const pageSize = 20;
 
-export function CalendarImportDialog({ sites, onClose, onImported }: {
+export function CalendarImportDialog({ sites, month, onClose, onImported }: {
     sites: Site[];
+    month: string;
     onClose: () => void;
-    onImported: (message: string) => void;
+    onImported: (message: string, month?: string) => void;
 }) {
     const dialog = useRef<HTMLDialogElement>(null);
     const [rows, setRows] = useState<PreviewRow[]>([]);
@@ -18,23 +19,39 @@ export function CalendarImportDialog({ sites, onClose, onImported }: {
     const [page, setPage] = useState(0);
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
+    const [workbook, setWorkbook] = useState<Awaited<ReturnType<typeof openScheduleWorkbook>> | null>(null);
+    const [sheet, setSheet] = useState('');
     useEffect(() => { dialog.current?.showModal(); }, []);
     const selected = rows.filter(row => row.include);
     const unselected = rows.length - selected.length;
     const pageCount = Math.max(1,Math.ceil(rows.length / pageSize));
     const visible = rows.slice(page * pageSize,(page + 1) * pageSize);
 
-    async function load(file: File) {
-        setBusy(true);
+    function preview(source: NonNullable<typeof workbook>, name: string) {
+        setSheet(name);
         setMessage('');
         setRows([]);
         setIssues([]);
         setPage(0);
         try {
-            const result = await readScheduleWorkbook(file,sites);
+            const result = source.read(name,sites);
             setRows(result.rows.map(row => ({ ...row, include:!row.review })));
             setIssues(result.issues);
             if (!result.rows.length) setMessage('가져올 수 있는 일정이 없습니다.');
+        } catch (error) { setMessage(error instanceof Error ? error.message : '엑셀을 읽지 못했습니다.'); }
+    }
+
+    async function load(file: File) {
+        setBusy(true);
+        setWorkbook(null);
+        setSheet('');
+        setRows([]);
+        setIssues([]);
+        setMessage('');
+        try {
+            const source = await openScheduleWorkbook(file);
+            setWorkbook(source);
+            preview(source,preferredScheduleSheet(source.sheetNames,month));
         } catch (error) { setMessage(error instanceof Error ? error.message : '엑셀을 읽지 못했습니다.'); }
         finally { setBusy(false); }
     }
@@ -61,7 +78,9 @@ export function CalendarImportDialog({ sites, onClose, onImported }: {
                 processed += batch.length;
                 setMessage(processed + ' / ' + selected.length + '건 확인했습니다.');
             }
-            onImported(added + '건을 추가했습니다. 이미 등록된 일정 ' + (processed - added) + '건은 건너뛰었습니다.');
+            const months = [...new Set(selected.map(row => row.date.slice(0,7)).filter(Boolean))];
+            onImported(added + '건을 추가했습니다. 이미 등록된 일정 ' + (processed - added) + '건은 건너뛰었습니다.',
+                months.length === 1 ? months[0] : undefined);
         } catch (error) {
             setMessage((added ? added + '건 저장 후 중단됐습니다. 다시 시도하면 기존 항목을 건너뜁니다. ' : '') +
                 (error instanceof Error ? error.message : '가져오기에 실패했습니다.'));
@@ -79,6 +98,11 @@ export function CalendarImportDialog({ sites, onClose, onImported }: {
                 event.target.value = '';
             }}/>
         </label>
+        {workbook && workbook.sheetNames.length > 1 && <label className="calendar-import-file">가져올 시트
+            <select value={sheet} disabled={busy} onChange={event => preview(workbook,event.target.value)}>
+                {workbook.sheetNames.map(name => <option key={name}>{name}</option>)}
+            </select>
+        </label>}
         {!!issues.length && <details><summary>파일에서 확인할 항목 {issues.length}건</summary>
             <ul>{issues.map((issue,index) => <li key={index}>{issue}</li>)}</ul>
         </details>}
@@ -103,7 +127,7 @@ export function CalendarImportDialog({ sites, onClose, onImported }: {
                             <label>작업 구분<select disabled={busy} value={row.kind} onChange={event => update(index,{kind:event.target.value as ImportRow['kind']})}>
                                 {workKinds.map(kind => <option key={kind}>{kind}</option>)}
                             </select></label>
-                            {row.review && <label>등록 현장 연결<select disabled={busy} value={row.siteId} onChange={event => {
+                            {(row.review || !row.siteId) && <label>등록 현장 연결<select disabled={busy} value={row.siteId} onChange={event => {
                                 const site = sites.find(site => site.id === event.target.value);
                                 update(index,{siteId:site?.id || '',siteName:site?.name || row.siteName,address:site?.address || ''});
                             }}>
