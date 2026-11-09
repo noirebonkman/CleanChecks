@@ -52,8 +52,12 @@ export function RecordJournal({canCreate=true,records,name,query,filter,onQuery,
      <div className="journal-progress"><div><span>{selected.status==='complete'?'점검 완료':'점검 진행'}</span><strong>{checked(selected)} / {total}항목</strong></div><div className="progress" role="progressbar" aria-label="선택한 점검의 항목 진행률" aria-valuemin={0} aria-valuemax={total} aria-valuenow={checked(selected)}><i style={{width:`${checked(selected)/total*100}%`}}/></div></div>
      <h3 className="journal-section-title">구역별 점검</h3><ul className="journal-sections">{sections.map((section,si)=>{const done=section.items.filter((_,i)=>grades.includes(selected.answers[`${si}-${i}`])).length;const issues=section.items.filter((_,i)=>['B','C'].includes(selected.answers[`${si}-${i}`])).length;return <li key={section.title}><span>{section.title}</span><span className={issues?'journal-needs-action':''}>{issues?`B·C ${issues}개`:done===section.items.length?<><Check size={15} aria-hidden="true"/>확인 완료</>:`${done} / ${section.items.length}`}</span></li>})}</ul>
      {selected.rating&&<div className="journal-result"><span>종합평가</span><strong>{selected.rating}</strong></div>}
-     {selected.issues&&<div className="journal-issues"><h3>주요 지적사항</h3><p>{selected.issues}</p></div>}
-     {(selected.action||selected.actionState||selected.assignee||selected.due)&&<div className="journal-followup"><h3>개선 조치</h3>{selected.action&&<p>{selected.action}</p>}<dl>{selected.actionState&&<div><dt>조치 상태</dt><dd>{selected.actionState}</dd></div>}{selected.assignee&&<div><dt>조치 담당자</dt><dd>{selected.assignee}</dd></div>}{selected.due&&<div><dt>완료 예정일</dt><dd><time dateTime={selected.due}>{formatDate(selected.due)}</time></dd></div>}</dl></div>}
+     {selected.issues?.trim()&&<div className="journal-issues"><h3>주요 지적사항</h3><p>{selected.issues}</p></div>}
+     {(selected.action?.trim()||selected.actionState||selected.assignee?.trim()||selected.due)&&<div className="journal-followup"><h3>개선 조치</h3>{selected.action?.trim()&&<p>{selected.action}</p>}<dl>
+      <div><dt>조치 상태</dt><dd>{knownValue(selected.actionState)}</dd></div>
+      <div><dt>조치 담당자</dt><dd>{knownValue(selected.assignee)}</dd></div>
+      <div><dt>완료 예정일</dt><dd>{selected.due?<time dateTime={selected.due}>{formatDate(selected.due)}</time>:'미확인'}</dd></div>
+     </dl></div>}
      <div className="journal-actions"><button className="primary" onClick={()=>onOpen(selected)}>{selected.status==='draft'?'이어서 점검하기':'점검표 열기'}<ArrowRight size={18}/></button>{selected.status==='complete'&&<button className="secondary" onClick={()=>onExport(selected)}><Download size={18}/>내보내기</button>}</div>
     </div>:<div className="journal-detail-empty"><ClipboardCheck size={38}/><h2>점검 기록을 한눈에</h2><p>왼쪽에서 기록을 선택하면 현장 정보와<br/>구역별 점검 결과를 확인할 수 있습니다.</p></div>}
    </section>

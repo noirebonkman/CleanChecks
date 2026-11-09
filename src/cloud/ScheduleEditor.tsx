@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Site } from '../inspection-model';
+import { knownValue } from '../site-details';
 import { repeatOptions, sameAssignee, visitLabel, workKinds, workStates, type SavedSchedule, type Visit } from './calendar-model';
 
 export function ScheduleEditor({ initial, sites, visits, effectiveDate, onClose, onSave, onDelete, onSeries, onFuture }: {
@@ -58,7 +59,7 @@ export function ScheduleEditor({ initial, sites, visits, effectiveDate, onClose,
                     }}>
                         <option value="">직접 입력</option>
                         {value.siteId && !sites.some(site => site.id === value.siteId) && <option value={value.siteId}>{value.siteName}</option>}
-                        {sites.map(site => <option key={site.id} value={site.id}>{site.name}{site.zone ? ' · ' + site.zone : ''}</option>)}
+                        {sites.map(site => <option key={site.id} value={site.id}>{site.name} · {knownValue(site.zone)}</option>)}
                     </select>
                 </label>
                 <label>현장명<input required maxLength={200} value={value.siteName} readOnly={!!value.siteId} onChange={e => change('siteName',e.target.value)}/></label>

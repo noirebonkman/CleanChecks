@@ -18,8 +18,13 @@ export function isContractExpired(site: Site, now = new Date()): boolean {
 }
 
 export function siteLocation(site: Site): string {
-    return [site.zone, site.address].filter(value => knownValue(value) !== '미확인').join(' · ');
+    return [site.zone?.trim(), site.address?.trim()].filter(value => value && value !== '미확인').join(' · ');
 }
 
-export const knownValue = (value?: string | null) =>
-    value?.trim() && !['무자료','자료 없음','미입력'].includes(value.trim()) ? value : '미확인';
+export const knownValue = (value?: string | null) => value?.trim() ? value : '미확인';
+
+export function siteCompany(value?: string | null): string {
+    const normalized = value?.normalize('NFKC').replace(/\s+/g, '') || '';
+    const company = /^(?:\(주\)|주식회사)?(?:FM|에프엠)?(파트너스|시스템)(?:\(주\)|주식회사)?$/i.exec(normalized)?.[1];
+    return company ? 'FM' + company : '미확인';
+}
