@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Site } from '../inspection-model';
+import { knownValue } from '../site-details';
 import { workKinds } from './calendar-model';
 import { importSchedule, openScheduleWorkbook, preferredScheduleSheet, type ImportRow } from './calendar-import';
 
@@ -114,7 +115,7 @@ export function CalendarImportDialog({ sites, month, onClose, onImportBatch, onI
                     return <section key={index}>
                         <label className="calendar-import-include"><input type="checkbox" checked={row.include} disabled={busy}
                             onChange={event => update(index,{include:event.target.checked})}/>
-                            <strong>{row.date || '날짜 미정'} {row.start}</strong> <small>{row.source}</small></label>
+                            <strong>{row.date || '날짜 미정'} · {knownValue(row.start)}</strong> <small>{row.source}</small></label>
                         {row.review && <p className="schedule-warning">{row.review} 내용을 확인한 뒤 선택하세요.</p>}
                         <div className="schedule-fields">
                             <label>현장명<input maxLength={200} disabled={busy} value={row.siteName} onChange={event => {
@@ -132,7 +133,7 @@ export function CalendarImportDialog({ sites, month, onClose, onImportBatch, onI
                                 update(index,{siteId:site?.id || '',siteName:site?.name || row.siteName,address:site?.address || ''});
                             }}>
                                 <option value="">직접 입력</option>
-                                {sites.map(site => <option key={site.id} value={site.id}>{site.name}{site.zone ? ' · ' + site.zone : ''}</option>)}
+                                {sites.map(site => <option key={site.id} value={site.id}>{site.name} · {knownValue(site.zone)}</option>)}
                             </select></label>}
                         </div>
                     </section>;
