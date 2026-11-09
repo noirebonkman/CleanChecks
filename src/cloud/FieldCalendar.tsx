@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CalendarCheck, ChevronLeft, ChevronRight, Download, LogOut, MapPin, Plus, Search, Settings, SlidersHorizontal, MoreHorizontal, Upload } from 'lucide-react';
-import { hasPermission } from '../access-control';
+import { canManageCalendar } from '../access-control';
 import type { Site } from '../inspection-model';
 import { readTheme } from '../preferences';
 import { dateKey, monthDays, occurrenceId, shiftDay, todayKey, visitLabel, visitsByDay, weekdays, workKinds, workStates, type SavedSchedule, type Schedule, type Visit } from './calendar-model';
@@ -24,7 +24,7 @@ const monthLabel = (month: string) => month.slice(0,4) + '년 ' + Number(month.s
 const dayLabel = (day: string) => Number(day.slice(5,7)) + '월 ' + Number(day.slice(8)) + '일';
 
 export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: ServerUser; onMenu: () => void; onLogout: () => Promise<void>; onSettings?: () => void }) {
-    const canEdit = hasPermission(user, 'manageSites');
+    const canEdit = canManageCalendar(user);
     const [month, setMonth] = useState(() => todayKey().slice(0,7));
     const [day, setDay] = useState(todayKey);
     const [view, setView] = useState<'month' | 'week' | 'list'>('month');
@@ -112,6 +112,18 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     const days = useMemo(() => monthDays(month), [month]);
     const ready = loaded === month && !loadError;
     const visits = useMemo(() => visitsByDay(ready ? rows : [], days), [ready,rows,days]);
+    useEffect(() => {
+        if (!ready || !active || editor) return;
+        const latest = active.occurrenceDate
+            ? visits.get(active.occurrenceDate)?.find(visit => visit.id === active.id)
+            : rows.find(row => row.id === active.id && !row.date);
+        if (!latest) {
+            setActive(null);
+            setNotice('일정이 이동되었거나 삭제되었습니다. 최신 목록을 확인해 주세요.');
+        } else if (latest.revision !== active.revision) {
+            setActive({...latest,occurrenceDate:active.occurrenceDate});
+        }
+    }, [active,editor,ready,rows,visits]);
     const names = [...new Set([assignee,...(ready ? rows.flatMap(row => [row.assignee,...(row.previousRules || []).map(rule => rule.assignee)]) : [])]
         .filter(Boolean))].sort((a,b) => a.localeCompare(b,'ko'));
     const search = query.trim().toLowerCase();
@@ -193,7 +205,10 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
         <main className="field-calendar" aria-labelledby="field-calendar-title">
             <header className="calendar-header">
                 <button className="header-icon-button" aria-label="서비스 선택" title="서비스 선택" onClick={onMenu}><ArrowLeft size={21} aria-hidden="true"/></button>
-                <h1 id="field-calendar-title" ref={heading} tabIndex={-1}>현장 일정 캘린더</h1>
+                <div className="calendar-heading">
+                    <h1 id="field-calendar-title" ref={heading} tabIndex={-1}>현장 일정 캘린더</h1>
+                    {!canEdit && <small>조회 전용</small>}
+                </div>
                 <div className="calendar-actions">
                     {canEdit && <button className="header-icon-button schedule-primary" aria-label="일정 추가" title="일정 추가"
                         disabled={!ready} onClick={() => openEditor(newSchedule(day))}><Plus size={22} aria-hidden="true"/></button>}
@@ -285,7 +300,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                             <div className="calendar-day-visits">
                                 {entries.slice(0,3).map(visit => <button key={visit.id} className="visit-chip" data-kind={workKinds.indexOf(visit.kind)}
                                     data-state={visit.state} onClick={() => openVisit(visit)} draggable={canEdit}
-                                    onDragStart={event => { drag.current = visit; event.dataTransfer.setData('text/plain',visit.id); }}
+                                    onDragStart={canEdit ? event => { drag.current = visit; event.dataTransfer.setData('text/plain',visit.id); } : undefined}
                                     onDragEnd={() => { drag.current = null; }}>{visitLabel(visit)}</button>)}
                                 {entries.length > 3 && <button className="calendar-more" onClick={() => selectDay(date)}>+{entries.length - 3}건</button>}
                             </div>
@@ -330,11 +345,11 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                     <button disabled={working} onClick={() => openEditor({ ...active, id:crypto.randomUUID(), date:active.occurrenceDate,
                         repeat:'none', until:'', seriesId:'', originalDate:'', state:'예정', revision:0 })}>복제</button></div>}
             </dialog>}
-            {editor && <ScheduleEditor key={editor.id + effectiveDate} initial={editor} sites={sites} visits={visits} effectiveDate={effectiveDate}
+            {canEdit && editor && <ScheduleEditor key={editor.id + effectiveDate} initial={editor} sites={sites} visits={visits} effectiveDate={effectiveDate}
                 onClose={() => setEditor(null)} onSave={value => save(value,effectiveDate)} onDelete={remove}
                 onSeries={editor.seriesId && parent ? () => openEditor(parent) : undefined}
                 onFuture={editor.seriesId && parent && active && !active.seriesId ? editFuture : undefined}/>}
-            {importOpen && <CalendarImportDialog sites={sites} month={month} onClose={() => setImportOpen(false)} onImported={(message, importedMonth) => {
+            {canEdit && importOpen && <CalendarImportDialog sites={sites} month={month} onClose={() => setImportOpen(false)} onImported={(message, importedMonth) => {
                 if (importedMonth && importedMonth !== month) goMonth(importedMonth);
                 setImportOpen(false); setNotice(message); refresh(value => value + 1);
             }}/>}

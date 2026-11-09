@@ -1,5 +1,6 @@
 import { monthDays, occursOn, occurrenceId, repeatOptions, shiftDay, workKinds, workStates, type Schedule } from '../../src/cloud/calendar-model';
-import { requirePermission } from './account-permissions';
+import { canManageCalendar } from '../../src/access-control';
+import { permissionsFor } from './account-permissions';
 import type { Account, Environment } from './bindings';
 import { digest, open, seal } from './security';
 import { ApiError, id, jsonBody, revision, text } from './validation';
@@ -68,13 +69,11 @@ export async function calendarRoute(request: Request, env: Environment, account:
         return { version, schedules: await Promise.all(results.map(async row => ({ ...await open<Schedule>(row.payload,env), revision:row.revision }))) };
     }
 
-    if (url.pathname === '/api/calendar/import' && request.method === 'POST') {
-        requirePermission(account, 'manageSites');
-        return importSchedules(request,env);
-    }
+    if (!canManageCalendar({role:account.role,permissions:permissionsFor(account)}))
+        throw new ApiError(403, '일정 조회만 가능한 계정입니다.');
+    if (url.pathname === '/api/calendar/import' && request.method === 'POST') return importSchedules(request,env);
     const match = /^\/api\/calendar\/([a-zA-Z0-9_-]+)$/.exec(url.pathname);
     if (!match || !['PUT','DELETE'].includes(request.method)) throw new ApiError(404, '지원하지 않는 일정 요청입니다.');
-    requirePermission(account, 'manageSites');
     const key = id(match[1]), body = await jsonBody(request), expected = revision(body.revision);
     const conflict = () => new ApiError(409, '다른 기기에서 일정이 변경되었습니다. 새로고침한 뒤 다시 시도해 주세요.');
     if (request.method === 'DELETE') {

@@ -14,8 +14,14 @@ export function resolvePermissions(role: AccountRole, overrides: Partial<Permiss
         typeof overrides[key] === 'boolean' ? overrides[key] : key === 'writeOwnRecords' || role === 'admin'
     )])) as EffectivePermissions;
 }
-export function hasPermission(user: { role: AccountRole; permissions?: EffectivePermissions } | null | undefined, key: PermissionKey): boolean {
+type AccountAccess = { role: AccountRole; permissions?: EffectivePermissions };
+
+export function hasPermission(user: AccountAccess | null | undefined, key: PermissionKey): boolean {
     if (!user) return false;
     if (user.role === 'owner') return key !== 'writeOwnRecords';
     return user.permissions ? user.permissions[key] === true : resolvePermissions(user.role)[key];
+}
+
+export function canManageCalendar(user: AccountAccess): boolean {
+    return user.role !== 'inspector' && hasPermission(user, 'manageSites');
 }
