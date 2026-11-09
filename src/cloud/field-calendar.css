@@ -13,6 +13,7 @@
     margin-bottom:.65rem;
 }
 .calendar-header h1 { display:block; min-width:0; overflow-wrap:anywhere; }
+.calendar-heading small { display:block; color:var(--muted); font-size:.75rem; }
 .calendar-header .calendar-actions,.calendar-utilities,.calendar-period { flex-wrap:nowrap; }
 .calendar-period h2 { min-width:0; overflow-wrap:anywhere; }
 .field-calendar button,.calendar-select,.calendar-search {

@@ -27,6 +27,7 @@ try {
     await call('setup', 201, { method: 'POST', body: { setupToken, username: 'ludmin', name: '어드민', password } });
     await apply('0003_account_permissions.sql');
     await apply('0004_inspection_photos.sql');
+    await apply('0005_calendar.sql');
     const owner = await login('ludmin', password);
     assert.deepEqual(owner.data.user.permissions, permissions(true, false, true, true));
     for (const [username, role] of [['worker', 'inspector'], ['manager', 'admin']]) {
@@ -67,6 +68,18 @@ try {
     await call('people', 403, { cookie: worker.cookie });
     const site = { id: 'site', name: '권한 테스트 현장', zone: '구역', address: '주소', priority: '', cycle: '' };
     await call('sites/site', 200, { cookie: worker.cookie, method: 'PUT', body: { site, revision: 0 } });
+    const schedule = { id:'calendar-permission', siteId:site.id, siteName:site.name, address:site.address,
+        title:'청소', kind:'정기청소', date:'2026-11-02', start:'09:00', end:'10:00', assignee:'worker', notes:'',
+        state:'예정', repeat:'none', until:'', seriesId:'', originalDate:'' };
+    const path = 'calendar/' + schedule.id;
+    await call(path, 200, { cookie:manager.cookie, method:'PUT', body:{schedule,revision:0} });
+    const list = await call('calendar?month=2026-11', 200, { cookie:worker.cookie });
+    assert.equal(list.data.schedules.find(row => row.id === schedule.id).assignee,'worker');
+    await call(path, 403, { cookie:worker.cookie, method:'PUT', body:{schedule:{...schedule,state:'완료'},revision:1} });
+    await call(path, 403, { cookie:worker.cookie, method:'DELETE', body:{revision:1} });
+    await call('calendar/import', 403, { cookie:worker.cookie, method:'POST', body:{schedules:[]} });
+    await call(path, 200, { cookie:owner.cookie, method:'DELETE', body:{revision:1} });
+    console.log('PASS: assigned inspectors with delegated site access remain calendar viewers');
     const record = { id: 'own', site, date: '2026-11-02T12:00', type: '', cycle: '', technician: '', answers: {}, rating: '',
         issues: '', action: '', assignee: '', due: '', actionState: '', notes: '', photos: [], history: [], status: 'draft', updated: new Date().toISOString() };
     await call('records/own', 200, { cookie: worker.cookie, method: 'PUT', body: { record, revision: 0 } });
