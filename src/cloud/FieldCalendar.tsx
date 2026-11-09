@@ -3,6 +3,7 @@ import { ArrowLeft, CalendarCheck, ChevronLeft, ChevronRight, Download, GripVert
 import { canManageCalendar } from '../access-control';
 import type { Site } from '../inspection-model';
 import { readTheme } from '../preferences';
+import { APP_VERSION } from '../version';
 import { dateKey, monthDays, occurrenceId, overlappingVisits, shiftDay, todayKey, visitLabel, visitsByDay, weekdays, workKinds, workStates, type SavedSchedule, type Schedule, type Visit } from './calendar-model';
 import { CalendarImportDialog } from './CalendarImportDialog';
 import { post, request, type ServerUser } from './client';
@@ -333,7 +334,10 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
             <header className="calendar-header">
                 <button className="header-icon-button" aria-label="서비스 선택" title="서비스 선택" onClick={onMenu}><ArrowLeft size={21} aria-hidden="true"/></button>
                 <div className="calendar-heading">
-                    <h1 id="field-calendar-title" ref={heading} tabIndex={-1}>현장 일정 캘린더</h1>
+                    <div className="calendar-heading-line">
+                        <h1 id="field-calendar-title" ref={heading} tabIndex={-1}>현장 일정 캘린더</h1>
+                        <span className="release-badge">v{APP_VERSION}</span>
+                    </div>
                     {!canEdit && <small>조회 전용</small>}
                 </div>
                 <div className="calendar-actions">

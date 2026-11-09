@@ -30,8 +30,10 @@ export function RecordJournal({canCreate=true,records,name,query,filter,onQuery,
  return <div className="content journal-home page-enter">
   <div className="journal-layout">
    <section className="journal-list" aria-label="점검 기록 목록">
-    <div className="journal-heading"><div><p className="eyebrow">FIELD JOURNAL</p><h1>점검 기록</h1></div>{canCreate&&<button className="primary" onClick={onNew}><Plus size={20}/>새 점검</button>}</div>
-    <p className="journal-intro">{name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p>
+    <header className="journal-heading">
+     <div><p className="eyebrow">현장점검</p><h1>점검 기록</h1><p className="journal-intro">{name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p></div>
+     {canCreate&&<button className="primary" onClick={onNew}><Plus size={20}/>새 점검</button>}
+    </header>
     <div className="journal-tools"><label className="search journal-search"><Search size={20} aria-hidden="true"/><input aria-label="현장 이름 검색" placeholder="현장명·구역·주소로 찾기" value={query} onChange={e=>onQuery(e.target.value)}/></label>
     <details className="journal-period"><summary><CalendarDays size={17} aria-hidden="true"/>기간 선택{(from||until)&&<span>적용 중</span>}</summary><div className="journal-date-fields"><label>시작일<input type="date" value={from} aria-invalid={invalidRange} aria-describedby={invalidRange?'journal-period-error':undefined} onChange={e=>setFrom(e.target.value)}/></label><label>종료일<input type="date" value={until} aria-invalid={invalidRange} aria-describedby={invalidRange?'journal-period-error':undefined} onChange={e=>setUntil(e.target.value)}/></label></div>{invalidRange&&<p id="journal-period-error" role="alert" className="form-error">종료일을 시작일과 같거나 이후로 선택해 주세요.</p>}{(from||until)&&<button className="text-button" onClick={()=>{setFrom('');setUntil('')}}>기간 해제</button>}</details>
     </div><div className="journal-filters" role="group" aria-label="점검 상태 필터">{(['전체','작성 중','완료'] as const).map(value=><button key={value} aria-pressed={filter===value} onClick={()=>onFilter(value)}>{value}<span>{counts[value]}</span></button>)}</div>

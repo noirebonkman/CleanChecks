@@ -20,7 +20,7 @@ import {useBackNavigation} from './useBackNavigation';
 import {APP_VERSION} from './version';
 import {personalData,mergePersonal,personalFiles,personalRevision,inspectPersonal} from './personal-data-transfer';
 import {lazy,Suspense,useEffect,useRef,useState,type ReactNode} from 'react';
-import {Menu,Plus,ChevronDown,ChevronRight,ArrowLeft,ArrowRight,ClipboardCheck,Settings,MapPin,Search,List,SlidersHorizontal,X,Camera,Check,Sun,Moon,Monitor,Lock,LogOut,Download,Upload,ShieldCheck,History,RefreshCw,Trash2} from 'lucide-react';
+import {Menu,Plus,ChevronDown,ChevronRight,ArrowLeft,ArrowRight,ClipboardCheck,Settings,MapPin,Search,List,SlidersHorizontal,X,Camera,Check,Sun,Moon,Monitor,Lock,LogOut,Download,Upload,ShieldCheck,History,RefreshCw,Trash2,Users} from 'lucide-react';
 import {sections,grades,gradeNames,localDate,uid,total,type State,type Inspection,type Staff,type Site,type Grade} from './inspection-model';
 import * as vault from './local-storage';
 import {bootstrap} from './app-bootstrap';
@@ -208,6 +208,7 @@ export default function App({session,onLogout,onWorkspaceMenu,settingsOpen,onOpe
   <span className="top-person account-identity" aria-label={session?'로그인 계정: '+session.name:undefined}>
 
    {session ? <>
+    {screen!=='settings'&&<span className="release-badge">v{APP_VERSION}</span>}
     {session.name.trim()!==roleName[session.role]&&<span className="account-name">{session.name}</span>}
     <span className="user-tag" data-tone={session.role}>{roleName[session.role]}</span>
    </> : <>
@@ -262,9 +263,9 @@ export default function App({session,onLogout,onWorkspaceMenu,settingsOpen,onOpe
  {session&&screen==='settings'&&<div className="content settings server-settings page-enter">
   <header className="page-heading"><div><p className="eyebrow">사용 환경 및 계정 관리</p><h1>설정 <span className="version-pill">v{APP_VERSION}</span></h1></div></header>
   <nav className="settings-tabs" aria-label="설정 기능">
-   <button aria-pressed={settingsSection==='general'} onClick={()=>setSettingsSection('general')}>일반 설정</button>
-   {hasPermission(session,'manageUsers')&&<button aria-pressed={settingsSection==='users'} onClick={()=>setSettingsSection('users')}>사용자 관리</button>}
-   {session.role==='owner'&&<button aria-pressed={settingsSection==='owner'} onClick={()=>setSettingsSection('owner')}>어드민 도구</button>}
+   <button aria-pressed={settingsSection==='general'} onClick={()=>setSettingsSection('general')}><Settings size={16} aria-hidden="true"/>일반 설정</button>
+   {hasPermission(session,'manageUsers')&&<button aria-pressed={settingsSection==='users'} onClick={()=>setSettingsSection('users')}><Users size={16} aria-hidden="true"/>사용자 관리</button>}
+   {session.role==='owner'&&<button aria-pressed={settingsSection==='owner'} onClick={()=>setSettingsSection('owner')}><ShieldCheck size={16} aria-hidden="true"/>어드민 도구</button>}
   </nav>
   <div className="settings-account" ref={setSettingsHost}/>
   {settingsSection==='general'&&<>
