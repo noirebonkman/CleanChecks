@@ -1,7 +1,7 @@
 {
   "name": "lucent-inspection",
   "private": true,
-  "version": "0.9996",
+  "version": "0.9998",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5179",

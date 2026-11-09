@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Site } from '../inspection-model';
 import { knownValue } from '../site-details';
-import { repeatOptions, sameAssignee, visitLabel, workKinds, workStates, type SavedSchedule, type Visit } from './calendar-model';
+import { overlappingVisits, repeatOptions, visitLabel, workKinds, workStates, type SavedSchedule, type Visit } from './calendar-model';
 
 export function ScheduleEditor({ initial, sites, visits, effectiveDate, onClose, onSave, onDelete, onSeries, onFuture }: {
     initial: SavedSchedule;
@@ -22,12 +22,7 @@ export function ScheduleEditor({ initial, sites, visits, effectiveDate, onClose,
     useEffect(() => { dialog.current?.showModal(); }, []);
     const change = <K extends keyof SavedSchedule>(key: K, next: SavedSchedule[K]) =>
         setValue(current => ({ ...current, [key]:next }));
-    const overlapping = value.state === '취소' || !value.start ? [] : (visits.get(value.date) || []).filter(visit => {
-        if (visit.id === value.id || (visit.id === value.seriesId && visit.occurrenceDate === value.originalDate)
-            || visit.state === '취소' || !visit.start || !sameAssignee(value.assignee, visit.assignee)) return false;
-        if (value.start === visit.start) return true;
-        return value.start < (visit.end || visit.start) && visit.start < (value.end || value.start);
-    });
+    const overlapping = overlappingVisits(value, visits.get(value.date) || []);
     async function run(action: () => Promise<void>) {
         if (busy) return;
         setBusy(true);
