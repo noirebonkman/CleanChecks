@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import type { Site } from '../inspection-model';
 import { workKinds } from './calendar-model';
 import { importSchedule, openScheduleWorkbook, preferredScheduleSheet, type ImportRow } from './calendar-import';
-import { post } from './client';
 
 type PreviewRow = ImportRow & { include: boolean };
 const pageSize = 20;
 
-export function CalendarImportDialog({ sites, month, onClose, onImported }: {
+export function CalendarImportDialog({ sites, month, onClose, onImportBatch, onImported }: {
     sites: Site[];
     month: string;
     onClose: () => void;
+    onImportBatch: (schedules: Awaited<ReturnType<typeof importSchedule>>[]) => Promise<{added:number}>;
     onImported: (message: string, month?: string) => void;
 }) {
     const dialog = useRef<HTMLDialogElement>(null);
@@ -73,7 +73,7 @@ export function CalendarImportDialog({ sites, month, onClose, onImported }: {
             const schedules = await Promise.all(selected.map(row => importSchedule(row)));
             for (let index = 0; index < schedules.length; index += 50) {
                 const batch = schedules.slice(index,index + 50);
-                const result = await post<{added:number}>('calendar/import',{schedules:batch});
+                const result = await onImportBatch(batch);
                 added += result.added;
                 processed += batch.length;
                 setMessage(processed + ' / ' + selected.length + '건 확인했습니다.');

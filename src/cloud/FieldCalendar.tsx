@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CalendarCheck, ChevronLeft, ChevronRight, Download, LogOut, MapPin, Plus, Search, Settings, SlidersHorizontal, MoreHorizontal, Upload } from 'lucide-react';
 import { canManageCalendar } from '../access-control';
 import type { Site } from '../inspection-model';
@@ -25,6 +25,11 @@ const dayLabel = (day: string) => Number(day.slice(5,7)) + '월 ' + Number(day.s
 
 export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: ServerUser; onMenu: () => void; onLogout: () => Promise<void>; onSettings?: () => void }) {
     const canEdit = canManageCalendar(user);
+    const mayWrite = useRef(canEdit);
+    useLayoutEffect(() => {
+        mayWrite.current = canEdit;
+        return () => { mayWrite.current = false; };
+    }, [canEdit]);
     const [month, setMonth] = useState(() => todayKey().slice(0,7));
     const [day, setDay] = useState(todayKey);
     const [view, setView] = useState<'month' | 'week' | 'list'>('month');
@@ -158,8 +163,16 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
         goMonth(dateKey(year, number + step, 1).slice(0,7));
     }
     function openVisit(visit: Visit) { setDay(visit.occurrenceDate || day); setActive(visit); }
-    function openEditor(value: SavedSchedule, cutoff = '') { setEffectiveDate(cutoff); setEditor(value); }
+    function requireCalendarWrite() {
+        if (!mayWrite.current) throw Error('일정 조회만 가능한 계정입니다.');
+    }
+    function openEditor(value: SavedSchedule, cutoff = '') {
+        if (!mayWrite.current) return;
+        setEffectiveDate(cutoff);
+        setEditor(value);
+    }
     async function save(value: SavedSchedule, cutoff = '') {
+        requireCalendarWrite();
         const result = await post<{revision:number;schedule?:Schedule}>('calendar/' + value.id,
             { schedule:value, revision:value.revision, effectiveDate:cutoff },'PUT');
         setRows(current => [...current.filter(row => row.id !== value.id), {...(result.schedule || value),revision:result.revision}]);
@@ -171,6 +184,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
         setNotice('일정을 저장했습니다.');
     }
     async function remove() {
+        requireCalendarWrite();
         if (!editor) return;
         await post('calendar/' + editor.id, { revision:editor.revision },'DELETE');
         setRows(current => current.filter(row => row.id !== editor.id && row.seriesId !== editor.id));
@@ -287,12 +301,13 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                     {visibleDays.map(date => {
                         const entries = (visits.get(date) || []).filter(filter);
                         return <div key={date} className="calendar-day" data-selected={date === day} data-other={!date.startsWith(month)}
-                            onDragOver={event => { if (drag.current && canEdit) event.preventDefault(); }}
-                            onDrop={event => {
+                            onDragOver={canEdit ? event => { if (drag.current) event.preventDefault(); } : undefined}
+                            onDrop={canEdit ? event => {
+                                if (!drag.current) return;
                                 event.preventDefault();
-                                if (drag.current && canEdit) openEditor(editOccurrence(drag.current,date));
+                                openEditor(editOccurrence(drag.current,date));
                                 drag.current = null;
-                            }}>
+                            } : undefined}>
                             <button className="calendar-date" aria-pressed={date === day} aria-current={date === todayKey() ? 'date' : undefined}
                                 aria-label={dayLabel(date) + ' 일정 ' + entries.length + '건'} onClick={() => selectDay(date)}>
                                 <span>{Number(date.slice(8))}</span>{entries.length > 0 && <small>{entries.length}</small>}
@@ -301,7 +316,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                                 {entries.slice(0,3).map(visit => <button key={visit.id} className="visit-chip" data-kind={workKinds.indexOf(visit.kind)}
                                     data-state={visit.state} onClick={() => openVisit(visit)} draggable={canEdit}
                                     onDragStart={canEdit ? event => { drag.current = visit; event.dataTransfer.setData('text/plain',visit.id); } : undefined}
-                                    onDragEnd={() => { drag.current = null; }}>{visitLabel(visit)}</button>)}
+                                    onDragEnd={canEdit ? () => { drag.current = null; } : undefined}>{visitLabel(visit)}</button>)}
                                 {entries.length > 3 && <button className="calendar-more" onClick={() => selectDay(date)}>+{entries.length - 3}건</button>}
                             </div>
                         </div>;
@@ -349,7 +364,10 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                 onClose={() => setEditor(null)} onSave={value => save(value,effectiveDate)} onDelete={remove}
                 onSeries={editor.seriesId && parent ? () => openEditor(parent) : undefined}
                 onFuture={editor.seriesId && parent && active && !active.seriesId ? editFuture : undefined}/>}
-            {canEdit && importOpen && <CalendarImportDialog sites={sites} month={month} onClose={() => setImportOpen(false)} onImported={(message, importedMonth) => {
+            {canEdit && importOpen && <CalendarImportDialog sites={sites} month={month} onClose={() => setImportOpen(false)} onImportBatch={schedules => {
+                requireCalendarWrite();
+                return post('calendar/import',{schedules});
+            }} onImported={(message, importedMonth) => {
                 if (importedMonth && importedMonth !== month) goMonth(importedMonth);
                 setImportOpen(false); setNotice(message); refresh(value => value + 1);
             }}/>}
