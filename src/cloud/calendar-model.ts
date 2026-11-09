@@ -88,3 +88,13 @@ export function sameAssignee(first: string, second: string) {
     return !!first.trim() && first.trim().toLowerCase() === second.trim().toLowerCase();
 }
 
+export function overlappingVisits(value: Schedule, visits: Visit[]) {
+    if (value.state === '취소' || !value.start) return [];
+    return visits.filter(visit => {
+        if (visit.id === value.id || (visit.id === value.seriesId && visit.occurrenceDate === value.originalDate)
+            || visit.state === '취소' || !visit.start || !sameAssignee(value.assignee, visit.assignee)) return false;
+        return value.start === visit.start
+            || (value.start < (visit.end || visit.start) && visit.start < (value.end || value.start));
+    });
+}
+

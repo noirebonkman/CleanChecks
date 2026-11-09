@@ -43,7 +43,7 @@ const snapshot={id:'old-record',site:{...site},answers:{'0-0':'A'}};
 const changed=structuredClone(decoded);changed.sites[0].name='갱신된 현장';
 const applied=api.applyDirectory({...state,records:[snapshot]},changed,'test-password-long','abc');
 assert.equal(applied.sites[0].name,'갱신된 현장');assert.equal(applied.records[0].site.name,'가상 현장');
-assert.throws(()=>api.validateDirectory({...decoded,sites:[{...site,address:''}]}));assert.throws(()=>api.validateDirectory({...decoded,staff:[staff,staff]}));
+assert.equal(api.validateDirectory({...decoded,sites:[{...site,address:''}]}).sites[0].address,'');assert.throws(()=>api.validateDirectory({...decoded,sites:[{...site,name:''}]}));assert.throws(()=>api.validateDirectory({...decoded,staff:[staff,staff]}));
 const key=await api.unlockAdmin(state,'1016');await assert.rejects(()=>api.unlockAdmin(state,'0000'));
 const sealed=await api.sealLog({action:'테스트',detail:'가상 내용'},state.publicKey);assert.equal((await api.openLog(sealed,key)).action,'테스트');
 const other=await api.makeAdmin('other-password');await assert.rejects(()=>api.openLog(sealed,other.privateKey));
@@ -134,7 +134,7 @@ fireEvent.click(screen.getByRole('button',{name:'다음 구역'}));await screen.
 assert.equal(document.querySelectorAll('.question.invalid').length,5);
 const gradeLegend=screen.getByRole('note',{name:'평가 기준'});
 for(const [letter,meaning]of [['A','양호'],['B','개선 필요'],['C','불량'],['N/A','해당 없음']]){assert(within(gradeLegend).getByText(letter,{exact:true}));assert(within(gradeLegend).getByText(meaning,{exact:true}));}
-assert(document.querySelector('.section-controls .mobile-section'));assert(document.querySelector('.section-controls').contains(screen.getByRole('button',{name:'이 구역 모두 양호'})));
+assert(document.querySelector('.section-controls h2'));assert(document.querySelector('.section-controls').contains(screen.getByRole('button',{name:'이 구역 모두 양호'})));
 for(const group of document.querySelectorAll('.grades')){assert.equal(group.style.gridTemplateColumns,'repeat(4,minmax(0,1fr))');assert.equal(group.querySelectorAll('button').length,4);for(const button of group.querySelectorAll('button'))assert(button.getAttribute('aria-label'));}
 const firstGradeGroup=screen.getAllByRole('group').find(g=>g.classList.contains('grades'));
 fireEvent.click(within(firstGradeGroup).getByRole('button',{name:'B 개선 필요'}));
@@ -464,12 +464,21 @@ const resumeStaff={id:'resume-person',name:'복귀 테스트',active:true,salt:'
 const resumeRecord={...stored.records[0],id:'resume-record',staffId:resumeStaff.id,status:'draft',photos:[{id:'retained-photo',name:'기존사진.jpg',data:photo}]};
 const resumeState={...stored,staff:[resumeStaff,emptyStaff],records:[resumeRecord],logs:[]};await api.load();await api.save(resumeState);
 api.saveWorkspace({person:resumeStaff.id,recordId:resumeRecord.id,step:3,screen:'inspect'});
-render(React.createElement(api.App));await screen.findByRole('combobox',{name:'점검 구역'});assert.equal(screen.getByRole('combobox',{name:'점검 구역'}).value,'3');
-fireEvent.change(screen.getByRole('combobox',{name:'점검 구역'}),{target:{value:'7'}});fireEvent.change(screen.getByPlaceholderText('개선이 필요한 내용을 적어주세요.'),{target:{value:'앱 전환 전에 입력한 내용'}});
+render(React.createElement(api.App));
+const resumeRoute=await screen.findByRole('navigation',{name:'점검 구역 이동'});
+assert.match(resumeRoute.querySelector('[aria-current=step]').getAttribute('aria-label'),/^4\./);
+fireEvent.click(screen.getByRole('button',{name:'점검 순서',exact:true}));
+const resumeDrawer=await screen.findByRole('dialog',{name:'점검 순서'});
+fireEvent.click(within(resumeDrawer).getByRole('button',{name:/점검 종합 결과/}));
+fireEvent.change(await screen.findByPlaceholderText('개선이 필요한 내용을 적어주세요.'),{target:{value:'앱 전환 전에 입력한 내용'}});
 await waitFor(async()=>assert.equal((await api.load()).records[0].issues,'앱 전환 전에 입력한 내용'));
 Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));await new Promise(r=>setTimeout(r,30))});
 await waitFor(async()=>assert.equal((await api.load()).records[0].photos.length,1));cleanup();
-Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});render(React.createElement(api.App));await screen.findByRole('combobox',{name:'점검 구역'});assert.equal(screen.getByRole('combobox',{name:'점검 구역'}).value,'7');assert.equal(screen.getByPlaceholderText('개선이 필요한 내용을 적어주세요.').value,'앱 전환 전에 입력한 내용');
+Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});
+render(React.createElement(api.App));
+const restoredRoute=await screen.findByRole('navigation',{name:'점검 구역 이동'});
+assert.match(restoredRoute.querySelector('[aria-current=step]').getAttribute('aria-label'),/^8\./);
+assert.equal(screen.getByPlaceholderText('개선이 필요한 내용을 적어주세요.').value,'앱 전환 전에 입력한 내용');
 console.log('PASS: selected inspector, last section, text and photos survive hide/unmount/relaunch; administrator access is not resumed');
 assert(document.querySelector('aside').hasAttribute('inert'));
 fireEvent.click(screen.getByRole('button',{name:'메뉴 열기'}));
