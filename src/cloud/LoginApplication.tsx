@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import App from '../App';
 import { readTheme } from '../preferences';
+import { APP_VERSION } from '../version';
+import { ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { post, request, ServerError, type ServerUser } from './client';
 import { prepareAccountWorkspace } from './account-workspace';
 import { Turnstile } from './Turnstile';
@@ -94,10 +96,21 @@ export function LoginApplication() {
         return <WorkspaceMenu user={user} onInspection={() => setWorkspace('inspection')}
             onCalendar={() => setWorkspace('calendar')} onLogout={logout} onSettings={() => setSettingsOpen(true)}/>;
     }
-    return <div className="login-shell" data-theme={readTheme()}>
-        <main className="login-card" aria-busy={loading || busy}>
-            <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
-            <p className="eyebrow">LUCENT · 현장점검</p>
+    return <div className="login-shell access-screen" data-theme={readTheme()}>
+        <main className="login-card sign-in-card" aria-busy={loading || busy}>
+            <div className="sign-in-brand">
+                <div className="sign-in-brandline">
+                    <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
+                    <span className="release-badge">v{APP_VERSION}</span>
+                </div>
+                <div className="sign-in-brand-copy">
+                    <ClipboardCheck size={25} aria-hidden="true"/>
+                    <strong>루센트 현장 관리</strong>
+                    <p>현장 점검과 일정 관리</p>
+                </div>
+            </div>
+            <div className="sign-in-form">
+            <p className="eyebrow"><ShieldCheck size={15} aria-hidden="true"/>계정 접속</p>
             <h1>{temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 등록' : '로그인'}</h1>
             <p>{temporaryUser ? '임시 비밀번호를 본인 비밀번호로 변경해야 사용할 수 있습니다.' : setup ? '최초 한 번만 등록합니다. 서버를 새로 만드는 과정이 아닙니다.' : '내 계정으로 점검 기록을 이어가세요.'}</p>
             {loading ? <p role="status">서버 연결을 확인하고 있습니다…</p> : <>
@@ -128,6 +141,7 @@ export function LoginApplication() {
                 {configuration?.setupRequired && !temporaryUser && <button className="text-button" onClick={() => { setSetup(value => !value); setError(''); }}>{setup ? '로그인으로 돌아가기' : '최초 어드민 계정 등록'}</button>}
                 {temporaryUser && <button className="text-button" onClick={() => void logout().catch(cause => setError(cause.message))}>다른 계정으로 로그인</button>}
             </>}
+            </div>
         </main>
     </div>;
 }

@@ -1,0 +1,205 @@
+/* The sign-in, workspace and day-to-day screens share the field-work palette. */
+:is(.app,.login-shell.access-screen)[data-theme] {
+    color-scheme: light;
+    --bg: light-dark(#f5f8fc,#141d2b);
+    --surface: light-dark(#fff,#0c1119);
+    --side: light-dark(#f5f8fc,#141d2b);
+    --ink: light-dark(#192639,#f1f6fb);
+    --text: var(--ink);
+    --muted: light-dark(#516176,#a7b3c3);
+    --line: light-dark(#dbe3ed,#303e52);
+    --accent: light-dark(#205ba6,#a7cbff);
+    --soft: light-dark(#e7f0fd,#203047);
+    --hover: light-dark(#edf4fc,#1b2a40);
+    --workspace-primary: light-dark(#1b5bb2,#2a62b2);
+    font-family: 'NanumSquare Neo','Malgun Gothic',system-ui,sans-serif;
+}
+:is(.app,.login-shell.access-screen)[data-theme=dark] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+    :is(.app,.login-shell.access-screen)[data-theme=system] { color-scheme: dark; }
+}
+.release-badge,.app .topbar .release-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    width: max-content;
+    padding: .27rem .46rem;
+    border: 1px solid var(--line);
+    border-radius: .45rem;
+    background: var(--soft);
+    color: var(--accent);
+    font-size: .72rem;
+    font-weight: 750;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.login-shell.access-screen[data-theme] {
+    background: var(--bg);
+    color: var(--ink);
+}
+.access-screen .login-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1.15rem;
+    box-shadow: 0 .65rem 2.5rem #0b203012;
+}
+.access-screen .sign-in-card {
+    display: grid;
+    grid-template-columns: minmax(13rem,.78fr) minmax(0,1fr);
+    width: min(100%,48rem);
+    padding: 0;
+    overflow: hidden;
+}
+.sign-in-brand {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: clamp(1.2rem,4vw,2rem);
+    background: var(--bg);
+    border-inline-end: 1px solid var(--line);
+}
+.sign-in-brandline,.workspace-title-line,.calendar-heading-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem .65rem;
+    min-width: 0;
+}
+.sign-in-brandline { justify-content: space-between; }
+.sign-in-brandline .login-logo { width: 4.75rem; margin: 0; }
+.sign-in-brand-copy { display: grid; gap: .45rem; }
+.sign-in-brand-copy > svg,.sign-in-form .eyebrow { color: var(--accent); }
+.sign-in-brand-copy strong { font-size: 1.12rem; }
+.sign-in-brand-copy p { font-size: .82rem; }
+.sign-in-form { padding: clamp(1.1rem,4vw,2.25rem); min-width: 0; }
+.sign-in-form .eyebrow { display: flex; align-items: center; gap: .35rem; }
+.sign-in-form > p:not(.eyebrow) { margin: .5rem 0 1.2rem; font-size: .9rem; }
+.sign-in-form form,.sign-in-form fieldset { gap: .9rem; }
+.access-screen .sign-in-form input:not([type=checkbox]) { background: var(--bg); color: var(--ink); }
+.access-screen .sign-in-form .primary,.app .sidebar .new,.app .journal-heading .primary,.app .journal-actions .primary {
+    background: var(--workspace-primary);
+    color: #fff;
+}
+.sign-in-form .login-help { padding-top: .8rem; margin-top: 1rem; }
+.access-screen .workspace-card { width: min(100%,48rem); padding: clamp(1rem,4vw,2rem); }
+.workspace-card .workspace-header { margin-bottom: .85rem; }
+.workspace-header .login-logo { width: 4.75rem; }
+.workspace-intro {
+    background: var(--bg);
+    border-radius: .75rem;
+    padding: .9rem 1rem;
+    margin-bottom: .85rem;
+}
+.workspace-intro p { margin-top: .3rem; font-size: .88rem; }
+.access-screen .workspace-card .workspace-option {
+    display: grid;
+    grid-template-columns: 2.55rem minmax(0,1fr) 1rem;
+    min-height: 6rem;
+    gap: .55rem;
+    padding: .75rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: .75rem;
+}
+.workspace-card .workspace-option-icon {
+    display: grid;
+    width: 2.55rem;
+    height: 2.55rem;
+    place-items: center;
+    border-radius: .65rem;
+    background: var(--soft);
+}
+.workspace-card .workspace-option > svg:last-child { color: var(--accent); }
+.app > main,.app .topbar { background: var(--surface); }
+.app .topbar {
+    min-height: 3.5rem;
+    height: auto;
+    gap: .55rem;
+    padding-block: .45rem;
+}
+.app .topbar .account-identity { min-width: 0; justify-content: flex-end; gap: .3rem .45rem; }
+.app .sidebar .brand { padding-bottom: 1.2rem; }
+.app .sidebar .new { margin-bottom: .65rem; border-radius: .7rem; }
+.app .sidebar .nav { border-radius: .65rem; }
+.app .sidebar .nav.active { box-shadow: inset 3px 0 var(--accent); }
+.app .journal-layout { gap: .85rem; border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.app :is(.journal-list,.journal-detail) {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    padding: clamp(.85rem,2vw,1.5rem);
+}
+.app .journal-heading {
+    padding: .8rem;
+    background: var(--bg);
+    border-radius: .7rem;
+    align-items: flex-start;
+}
+.app .journal-heading h1 { font-size: clamp(1.4rem,4vw,1.9rem); line-height: 1.25; }
+.app .journal-heading .eyebrow { color: var(--accent); }
+.app .journal-heading .primary { min-height: 2.75rem; border-radius: .6rem; padding: .35rem .65rem; }
+.app .journal-intro { margin: .35rem 0 0; }
+.app .journal-tools { margin-top: .75rem; }
+.app .journal-filters { background: var(--bg); border: 1px solid var(--line); border-radius: .65rem; }
+.app .journal-filters button[aria-pressed=true] { color: var(--accent); background: var(--soft); }
+.app .journal-record { min-height: 4.25rem; border-radius: .65rem; }
+.app .journal-record.is-selected { border-color: var(--accent); background: var(--soft); }
+.app .journal-detail-empty { min-height: 18rem; }
+.app .settings > .page-heading {
+    padding: clamp(.75rem,2vw,1.15rem);
+    border-radius: .75rem;
+    background: var(--bg);
+}
+.app .settings-tabs {
+    gap: .25rem;
+    padding: .3rem;
+    border: 1px solid var(--line);
+    border-radius: .7rem;
+    background: var(--bg);
+}
+.app .settings-tabs button { flex: 1 1 auto; padding-inline: .5rem; }
+.app .settings-tabs [aria-pressed=true] { background: var(--soft); }
+.app .settings .setting-card {
+    margin-bottom: .7rem;
+    padding: clamp(.8rem,2vw,1.25rem);
+    border: 1px solid var(--line);
+    border-radius: .75rem;
+    background: var(--surface);
+}
+.app .settings .setting-row { min-height: 2.75rem; gap: .45rem; overflow-wrap: anywhere; }
+.app .settings .theme-options { margin-top: .6rem; gap: .4rem; }
+.app .settings .theme-options button { min-height: 2.75rem; padding: .4rem; }
+.app[data-screen=sites] .page-heading { padding: .85rem; border-radius: .75rem; background: var(--bg); }
+.app[data-screen=sites] :is(.site-management-search,.records) { border-radius: .75rem; }
+.app[data-screen=sites] .site-management-search { max-width: 24rem; }
+.app[data-screen=sites] .record { gap: .7rem; padding: .8rem; }
+.app[data-screen=sites] .record-icon { background: var(--soft); color: var(--accent); }
+.app[data-screen=sites] .record-main { overflow-wrap: anywhere; }
+.calendar-heading-line h1 { margin: 0; }
+@media (hover:hover) {
+    .access-screen .workspace-card .workspace-option:hover:not(:disabled),
+    .app .settings-tabs button:hover:not([aria-pressed=true]),
+    .app .settings .setting-row:hover { background: var(--hover); }
+}
+@media (prefers-reduced-motion:no-preference) {
+    :is(.access-screen,.app) :is(.workspace-option,.settings-tabs button,.setting-row,.sidebar .nav,.journal-filters button) {
+        transition: background-color .16s ease,border-color .16s ease,color .16s ease,scale .14s ease;
+    }
+    .access-screen .workspace-option:active:not(:disabled) { scale: .985; }
+}
+@media (max-width:45rem) {
+    .access-screen .sign-in-card { grid-template-columns: minmax(0,1fr); width: min(100%,29rem); }
+    .sign-in-brand { gap: .55rem; padding: .85rem 1.1rem; border-inline-end: 0; border-block-end: 1px solid var(--line); }
+    .sign-in-brand-copy { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .35rem; }
+    .sign-in-brand-copy > svg { width: 1rem; height: 1rem; }
+    .sign-in-brand-copy strong { font-size: .82rem; }
+    .sign-in-brand-copy p { display: none; }
+    .workspace-title-line h1 { font-size: clamp(1.25rem,5vw,1.7rem); }
+    .access-screen .workspace-card .workspace-option { min-height: 4.25rem; }
+    .app .journal-list { padding: .65rem; }
+    .app .journal-heading { gap: .4rem; }
+    .app .journal-heading .primary { margin-left: 0; }
+}
