@@ -8,7 +8,8 @@ mkdirSync('.test-work', { recursive: true });
 await build({ entryPoints: ['src/worker.ts'], outfile: '.test-work/permission-worker.mjs', bundle: true, format: 'esm', platform: 'browser' });
 const setupToken = randomBytes(32).toString('hex'), password = 'OwnerPass12345', temporary = 'TempPass12345', chosen = 'Personal12345';
 const mf = new Miniflare({ modules: true, scriptPath: '.test-work/permission-worker.mjs', compatibilityDate: '2026-08-01',
-    d1Databases: { DB: 'permission-test' }, bindings: { APP_DATA_KEY: randomBytes(32).toString('base64'), SETUP_TOKEN: setupToken } });
+    d1Databases: { DB: 'permission-test' }, durableObjects: { CALENDAR_EVENTS: 'CalendarEvents' },
+    bindings: { APP_DATA_KEY: randomBytes(32).toString('base64'), SETUP_TOKEN: setupToken } });
 const origin = 'https://permission.example.workers.dev', db = await mf.getD1Database('DB');
 async function apply(name) {
     for (const sql of readFileSync('migrations/' + name, 'utf8').split(';').filter(value => value.trim())) await db.prepare(sql).run();
@@ -21,6 +22,29 @@ async function call(path, status, { cookie, method = 'GET', body } = {}) {
     return { data, cookie: response.headers.get('set-cookie')?.split(';')[0] };
 }
 async function login(username, pass = chosen) { return call('login', 200, { method: 'POST', body: { username, password: pass } }); }
+async function calendarSocket(cookie) {
+    const response = await mf.dispatchFetch(origin + '/api/calendar/events', { headers: {
+        Origin:origin, Cookie:cookie, Upgrade:'websocket', 'X-Calendar-Editor':'forged',
+    } });
+    assert.equal(response.status,101);
+    const socket = response.webSocket;
+    assert.ok(socket);
+    const messages = [];
+    socket.addEventListener('message',event => {
+        if (event.data !== 'calendar-changed') messages.push(JSON.parse(event.data));
+    });
+    socket.accept();
+    async function editorsAfter(index, matches = () => true) {
+        for (let attempt=0;attempt<100;attempt++) {
+            const updates=messages.slice(index).filter(message=>message.type==='calendar-editors'&&matches(message.editors));
+            if (updates.length) return updates.at(-1).editors;
+            await new Promise(resolve=>setTimeout(resolve,20));
+        }
+        throw Error('No editor presence update received');
+    }
+    await editorsAfter(0);
+    return {socket,messages,editorsAfter};
+}
 const permissions = (viewAllRecords = false, writeOwnRecords = true, manageSites = false, manageUsers = false) => ({ viewAllRecords, writeOwnRecords, manageSites, manageUsers });
 try {
     await apply('0001_initial.sql'); await apply('0002_account_login.sql');
@@ -70,7 +94,7 @@ try {
     await call('sites/site', 200, { cookie: worker.cookie, method: 'PUT', body: { site, revision: 0 } });
     const schedule = { id:'calendar-permission', siteId:site.id, siteName:site.name, address:site.address,
         title:'청소', kind:'정기청소', date:'2026-11-02', start:'09:00', end:'10:00', assignee:'worker', notes:'',
-        state:'예정', repeat:'none', until:'', seriesId:'', originalDate:'' };
+        state:'예정', repeat:'weekly', until:'', seriesId:'', originalDate:'' };
     const path = 'calendar/' + schedule.id;
     await call(path, 200, { cookie:manager.cookie, method:'PUT', body:{schedule,revision:0} });
     const list = await call('calendar?month=2026-11', 200, { cookie:worker.cookie });
@@ -78,8 +102,34 @@ try {
     await call(path, 403, { cookie:worker.cookie, method:'PUT', body:{schedule:{...schedule,state:'완료'},revision:1} });
     await call(path, 403, { cookie:worker.cookie, method:'DELETE', body:{revision:1} });
     await call('calendar/import', 403, { cookie:worker.cookie, method:'POST', body:{schedules:[]} });
-    await call(path, 200, { cookie:owner.cookie, method:'DELETE', body:{revision:1} });
     console.log('PASS: assigned inspectors with delegated site access remain calendar viewers');
+    const viewer=await calendarSocket(worker.cookie);
+    const firstTab=await calendarSocket(manager.cookie);
+    const secondTab=await calendarSocket(manager.cookie);
+    const firstItem='calendar-permission@2026-11-02', secondItem='calendar-permission@2026-11-09';
+    assert.deepEqual(await viewer.editorsAfter(0),[]);
+    viewer.socket.send('editing:'+secondItem);
+    let mark=viewer.messages.length;
+    firstTab.socket.send('editing:'+firstItem);
+    let activeEditors=await viewer.editorsAfter(mark,editors=>editors.some(editor=>editor.name==='manager'));
+    assert.deepEqual(activeEditors.map(editor=>editor.name),['manager']);
+    assert.deepEqual(activeEditors[0].items.map(item=>item.key),[firstItem]);
+    mark=viewer.messages.length;
+    secondTab.socket.send('editing:'+secondItem);
+    activeEditors=await viewer.editorsAfter(mark,editors=>editors[0]?.items.length===2);
+    assert.deepEqual(activeEditors[0].items.map(item=>item.key).sort(),[firstItem,secondItem]);
+    mark=viewer.messages.length;
+    firstTab.socket.send('viewing');
+    activeEditors=await viewer.editorsAfter(mark);
+    assert.deepEqual(activeEditors[0].items.map(item=>item.key),[secondItem]);
+    mark=viewer.messages.length;
+    secondTab.socket.close(1000,'Test complete');
+    assert.deepEqual(await viewer.editorsAfter(mark),[]);
+    assert(viewer.messages.every(message=>message.editors.length<=1 && message.editors.every(editor=>editor.name==='manager')));
+    firstTab.socket.close(1000,'Test complete');
+    viewer.socket.close(1000,'Test complete');
+    await call(path, 200, { cookie:owner.cookie, method:'DELETE', body:{revision:1} });
+    console.log('PASS: calendar editing is permission-gated and scoped to distinct occurrences; duplicate tabs count once');
     const record = { id: 'own', site, date: '2026-11-02T12:00', type: '', cycle: '', technician: '', answers: {}, rating: '',
         issues: '', action: '', assignee: '', due: '', actionState: '', notes: '', photos: [], history: [], status: 'draft', updated: new Date().toISOString() };
     await call('records/own', 200, { cookie: worker.cookie, method: 'PUT', body: { record, revision: 0 } });

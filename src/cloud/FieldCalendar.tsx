@@ -23,6 +23,7 @@ function editOccurrence(visit: Visit, date = visit.occurrenceDate): SavedSchedul
 }
 const monthLabel = (month: string) => month.slice(0,4) + '년 ' + Number(month.slice(5)) + '월';
 const dayLabel = (day: string) => Number(day.slice(5,7)) + '월 ' + Number(day.slice(8)) + '일';
+const presenceKey = (visit: Pick<Visit,'id'|'occurrenceDate'>) => visit.id + '@' + visit.occurrenceDate;
 
 export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: ServerUser; onMenu: () => void; onLogout: () => Promise<void>; onSettings?: () => void }) {
     const canEdit = canManageCalendar(user);
@@ -60,8 +61,9 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     const [arrival, setArrival] = useState<{id:string; date:string} | null>(null);
     const [moveMessage, setMoveMessage] = useState<{text:string; failed?:boolean} | null>(null);
     const [moveSelection, setMoveSelection] = useState<Visit | null>(null);
-    const [dragSource, setDragSource] = useState('');
+    const [dragSource, setDragSource] = useState<Visit | null>(null);
     const moveInFlight = useRef(false);
+    const movingSource = useRef<Visit | null>(null);
     const drag = useRef<Visit | null>(null);
     const dragGhost = useRef<HTMLDivElement>(null);
     const pointerDrag = useRef<{visit:Visit; id:number; x:number; y:number; moved:boolean} | null>(null);
@@ -70,7 +72,24 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     const heading = useRef<HTMLHeadingElement>(null);
     const details = useRef<HTMLDialogElement>(null);
     const requestLatest = useRef<() => void>(() => {});
-    const live = useCalendarLive(() => requestLatest.current());
+    const editingVisit = editor && active && (editor.id === active.id || editor.id === active.seriesId ||
+        (editor.seriesId === active.id && editor.originalDate === active.occurrenceDate)) ? active : null;
+    const editingSource = editor ? editingVisit : dragSource || moveSelection || movingSource.current;
+    const {connected:live,editors} = useCalendarLive(() => requestLatest.current(),
+        canEdit && (editor || editingSource) ? (editingSource ? presenceKey(editingSource) : '') : null);
+    const editorsByVisit = useMemo(() => {
+        const result = new Map<string,string[]>();
+        for (const {name,items} of editors) {
+            for (const item of items) result.set(item,[...(result.get(item) || []),name]);
+        }
+        return result;
+    },[editors]);
+    function editingLabel(visit: Pick<Visit,'id'|'occurrenceDate'>) {
+        const names = editorsByVisit.get(presenceKey(visit));
+        if (!names?.length) return null;
+        const label = names.join(' · ') + ' 편집 중';
+        return <span className="calendar-visit-editors" title={label}>{label}</span>;
+    }
     useEffect(() => { heading.current?.focus(); }, []);
     useEffect(() => {
         if (!arrival) return;
@@ -237,6 +256,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
         const next = editOccurrence(visit,date);
         const overlaps = overlappingVisits(next,visits.get(date) || []);
         moveInFlight.current = true;
+        movingSource.current = visit;
         setPendingMove(next);
         setArrival({id:next.id,date});
         selectDay(date);
@@ -250,6 +270,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
             setMoveMessage({failed:true,text:'일정을 옮기지 못했습니다. ' + (cause instanceof Error ? cause.message : '다시 시도해 주세요.')});
         } finally {
             moveInFlight.current = false;
+            movingSource.current = null;
             setPendingMove(null);
             refresh(value => value + 1);
         }
@@ -267,7 +288,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
             if (Math.hypot(event.clientX - gesture.x,event.clientY - gesture.y) < 7) return;
             gesture.moved = true;
             setMoveSelection(null);
-            setDragSource(gesture.visit.id);
+            setDragSource(gesture.visit);
         }
         const target = dayAtPointer(event);
         setDropTarget(target === gesture.visit.occurrenceDate ? '' : target);
@@ -290,7 +311,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
         if (!gesture.moved) return;
         draggedHandle.current = event.currentTarget;
         setDropTarget('');
-        setDragSource('');
+        setDragSource(null);
         if (dragGhost.current) dragGhost.current.hidden = true;
         const date = drop ? dayAtPointer(event) : '';
         if (date) void moveVisit(gesture.visit,date);
@@ -327,6 +348,11 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
         openEditor({ ...parent,date:cutoff },cutoff);
     }
 
+    const editorStatus = <div className="calendar-editors" role="status" hidden={!editors.length}>
+        <span className="calendar-editor-dot" aria-hidden="true"/>
+        <strong>편집 중 {editors.length}명</strong>
+        <span>{editors.map(editor => editor.name).join(' · ')}</span>
+    </div>;
     return <div className="login-shell calendar-shell" data-theme={readTheme()} onKeyDown={event => {
         if (event.key === 'Escape' && moveSelection) setMoveSelection(null);
     }}>
@@ -347,6 +373,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                         onClick={onSettings}><Settings size={21} aria-hidden="true"/></button>}
                 </div>
             </header>
+            {editorStatus}
             <div className="calendar-toolbar">
                 <div className="calendar-actions calendar-period">
                     <button className="header-icon-button" aria-label={view === 'week' ? '이전 주' : '이전 달'} onClick={() => movePeriod(-1)}><ChevronLeft size={19} aria-hidden="true"/></button>
@@ -412,13 +439,16 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                 {view === 'list' ? <div className="calendar-month-list">
                     {inMonth.filter(date => (visits.get(date) || []).some(filter)).map(date => <section key={date}>
                         <h3>{dayLabel(date)}</h3>{(visits.get(date) || []).filter(filter).map(visit =>
-                            <button key={visit.id} className="visit-chip" data-kind={workKinds.indexOf(visit.kind)} onClick={() => openVisit(visit)}>{visitLabel(visit)}</button>)}
+                            <button key={visit.id} className="visit-chip" data-kind={workKinds.indexOf(visit.kind)} onClick={() => openVisit(visit)}>
+                                <span className="calendar-visit-label">{visitLabel(visit)}</span>{editingLabel(visit)}
+                            </button>)}
                     </section>)}
                     {ready && !inMonth.some(date => (visits.get(date) || []).some(filter)) && <p className="calendar-feedback">표시할 일정이 없습니다.</p>}
                 </div> : <div className="calendar-grid" data-direction={periodDirection} key={view + month + (view === 'week' ? weekStart : '')} aria-label={monthLabel(month) + ' 일정표'}>
                     {weekdays.map(label => <div className="calendar-weekday" key={label}>{label}</div>)}
                     {visibleDays.map(date => {
                         const entries = (visits.get(date) || []).filter(filter);
+                        const hasEditing = entries.some(visit => editorsByVisit.has(presenceKey(visit)));
                         return <div key={date} className="calendar-day" data-date={date} data-selected={date === day} data-other={!date.startsWith(month)}
                             data-drop-target={dropTarget === date}
                             onDragOver={canEdit ? event => {
@@ -436,17 +466,19 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                                 if (!visit) return;
                                 event.preventDefault();
                                 drag.current = null;
+                                setDragSource(null);
                                 setDropTarget('');
                                 void moveVisit(visit,date);
                             } : undefined}>
                             <button className="calendar-date" aria-pressed={date === day} aria-current={date === todayKey() ? 'date' : undefined}
-                                aria-label={dayLabel(date) + ' 일정 ' + entries.length + '건'} onClick={() => {
+                                aria-label={dayLabel(date) + ' 일정 ' + entries.length + '건' + (hasEditing ? ' · 편집 중인 일정 있음' : '')} onClick={() => {
                                     if (canEdit && moveSelection) {
                                         setMoveSelection(null);
                                         void moveVisit(moveSelection,date);
                                     } else selectDay(date);
                                 }}>
                                 <span>{Number(date.slice(8))}</span>{entries.length > 0 && <small>{entries.length}</small>}
+                                {hasEditing && <i className="calendar-date-editing" aria-hidden="true"/>}
                             </button>
                             <div className="calendar-day-visits">
                                 {entries.slice(0,3).map(visit => <button key={visit.id} className="visit-chip" data-kind={workKinds.indexOf(visit.kind)}
@@ -456,10 +488,13 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                                     onDragStart={canEdit ? event => {
                                         if (moveInFlight.current) { event.preventDefault(); return; }
                                         drag.current = visit;
+                                        setDragSource(visit);
                                         event.dataTransfer.effectAllowed = 'move';
                                         event.dataTransfer.setData('text/plain',visit.id);
                                     } : undefined}
-                                    onDragEnd={canEdit ? () => { drag.current = null; setDropTarget(''); } : undefined}>{visitLabel(visit)}</button>)}
+                                    onDragEnd={canEdit ? () => { drag.current = null; setDragSource(null); setDropTarget(''); } : undefined}>
+                                    <span className="calendar-visit-label">{visitLabel(visit)}</span>{editingLabel(visit)}
+                                </button>)}
                                 {entries.length > 3 && <button className="calendar-more" onClick={() => selectDay(date)}>+{entries.length - 3}건</button>}
                             </div>
                         </div>;
@@ -471,13 +506,13 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                             {canEdit && <button aria-label={dayLabel(day) + ' 일정 추가'} disabled={!ready} onClick={() => openEditor(newSchedule(day))}><Plus size={17}/></button>}
                         </div>
                         {canEdit && moveSelection && <p className="calendar-move-guide" role="status">옮길 날짜를 달력에서 선택하세요.</p>}
-                        {selected.length ? selected.map(visit => <div className="visit-card-row" key={visit.id} data-drag-source={dragSource === visit.id}>
+                        {selected.length ? selected.map(visit => <div className="visit-card-row" key={visit.id} data-drag-source={dragSource?.id === visit.id}>
                             <button className="visit-card" data-kind={workKinds.indexOf(visit.kind)}
                             data-arriving={arrival?.id === visit.id && arrival.date === visit.occurrenceDate}
                             data-moving={pendingMove?.id === visit.id}
                             onClick={() => openVisit(visit)}>
                             <strong><span className="visit-time">{visit.start ? visit.start + (visit.end ? '–' + visit.end : '') : '시간 미확인'}</span>{knownValue(visit.siteName)}</strong>
-                            <span>{knownValue(visit.title)}</span><small>{knownValue(visit.assignee)} · {visit.state}</small></button>
+                            <span>{knownValue(visit.title)}</span><small>{knownValue(visit.assignee)} · {visit.state}</small>{editingLabel(visit)}</button>
                             {canEdit && view !== 'list' && <button className="calendar-drag-handle" type="button"
                                 aria-label={visitLabel(visit) + ' 날짜 이동'} aria-pressed={moveSelection?.id === visit.id}
                                 disabled={!!pendingMove} onPointerDown={event => startPointerDrag(event,visit)}
@@ -497,7 +532,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                             {canEdit && <button aria-label="날짜 미정 일정 추가" disabled={!ready} onClick={() => openEditor(newSchedule(''))}><Plus size={17}/></button>}
                         </div>
                         {unscheduled.length ? unscheduled.map(row => <button key={row.id} className="visit-card" data-kind={workKinds.indexOf(row.kind)}
-                            onClick={() => openVisit({...row,occurrenceDate:''})}><strong>{knownValue(row.siteName)}</strong><span>{knownValue(row.title)}</span><small>{knownValue(row.assignee)} · {row.state}</small></button>) :
+                            onClick={() => openVisit({...row,occurrenceDate:''})}><strong>{knownValue(row.siteName)}</strong><span>{knownValue(row.title)}</span><small>{knownValue(row.assignee)} · {row.state}</small>{editingLabel({...row,occurrenceDate:''})}</button>) :
                             <p>날짜를 정할 작업이 여기에 표시됩니다.</p>}
                     </section>
                 </aside>
@@ -511,6 +546,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                 data-closing={detailClosing} inert={detailClosing}
                 onCancel={event => { event.preventDefault(); closeVisit(); }}>
                 <div className="calendar-side-title"><h2 id="visit-detail-title">{knownValue(active.siteName)} · {knownValue(active.title)}</h2><button onClick={closeVisit}>닫기</button></div>
+                {editingLabel(active)}
                 <p>{active.occurrenceDate ? dayLabel(active.occurrenceDate) : '날짜 미확인'} · {active.start || '시간 미확인'}{active.end && '–' + active.end} · {active.kind} · {active.state}</p>
                 <p>담당 {knownValue(active.assignee)}</p>
                 <p><MapPin size={16}/> {knownValue(active.address)} {knownValue(active.address) !== '미확인' && <a href={'https://map.naver.com/p/search/' + encodeURIComponent(active.address)}
@@ -523,6 +559,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                         repeat:'none', until:'', seriesId:'', originalDate:'', state:'예정', revision:0 })}>복제</button></div>}
             </dialog>}
             {canEdit && editor && <ScheduleEditor key={editor.id + effectiveDate} initial={editor} sites={sites} visits={visits} effectiveDate={effectiveDate}
+                editorStatus={editingVisit ? <div role="status">{editingLabel(editingVisit)}</div> : editorStatus}
                 onClose={() => setEditor(null)} onSave={value => save(value,effectiveDate)} onDelete={remove}
                 onSeries={editor.seriesId && parent ? () => openEditor(parent) : undefined}
                 onFuture={editor.seriesId && parent && active && !active.seriesId ? editFuture : undefined}/>}
