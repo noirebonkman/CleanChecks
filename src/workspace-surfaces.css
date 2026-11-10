@@ -147,6 +147,7 @@
 .app .journal-filters button[aria-pressed=true] { color: var(--accent); background: var(--soft); }
 .app .journal-record { min-height: 4.25rem; border-radius: .65rem; }
 .app .journal-record.is-selected { border-color: var(--accent); background: var(--soft); }
+.journal-resume-hint { display:block; margin-top:.25rem; color:var(--accent); font-size:.74rem; font-weight:650; overflow-wrap:anywhere; }
 .app .journal-detail-empty { min-height: 18rem; }
 .app .settings > .page-heading {
     padding: clamp(.75rem,2vw,1.15rem);

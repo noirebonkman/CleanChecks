@@ -149,6 +149,8 @@ await waitFor(()=>assert(document.querySelector('.inspection-missing')));
 assert(!screen.queryByRole('heading',{name:'점검 종합 결과'}));
 fireEvent.click(screen.getByRole('button',{name:'다음 구역'}));await screen.findAllByText('평가를 선택해 주세요.');
 assert.equal(document.querySelectorAll('.question.invalid').length,5);
+fireEvent.click(screen.getByRole('button',{name:'빠진 항목으로'}));
+assert.equal(document.activeElement.closest('.question')?.id,'q-0-0');
 const gradeLegend=screen.getByRole('note',{name:'평가 기준'});
 for(const [letter,meaning]of [['A','양호'],['B','개선 필요'],['C','불량'],['N/A','해당 없음']]){assert(within(gradeLegend).getByText(letter,{exact:true}));assert(within(gradeLegend).getByText(meaning,{exact:true}));}
 assert(document.querySelector('.section-controls h2'));assert(document.querySelector('.section-controls').contains(screen.getByRole('button',{name:'이 구역 모두 양호'})));
@@ -434,6 +436,15 @@ const draftJournal={...preservedRecord,id:'journal-draft',status:'draft',date:'2
 let journalOpened,journalExported;const journalProps={records:[completeJournal,draftJournal],name:'테스트 점검자',query:'',filter:'전체',onQuery:()=>{},onFilter:()=>{},onNew:()=>{},onOpen:r=>journalOpened=r.id,onExport:r=>journalExported=r.id,emptyAction:null};
 const journal=render(React.createElement(api.RecordJournal,journalProps));
 const journalList=screen.getByRole('region',{name:'점검 기록 목록'}),journalDetail=screen.getByRole('region',{name:'선택한 점검 요약'});
+assert(within(journalList).getByText('이어갈 곳 · 바닥 및 출입구'));
+assert(within(journalDetail).getByRole('button',{name:'이어서 점검하기'}));
+journal.rerender(React.createElement(api.RecordJournal,{...journalProps,editableStaffId:'other-account'}));
+assert(!within(journalList).queryByText('이어갈 곳 · 바닥 및 출입구'));
+assert(within(journalDetail).getByRole('button',{name:'점검표 열기',exact:true}));
+journal.rerender(React.createElement(api.RecordJournal,{...journalProps,records:[completeJournal,{...draftJournal,pendingCompletion:draftJournal.updated}]}));
+assert(within(journalList).getByText('서버 전송 대기'));
+assert(within(journalDetail).getByRole('button',{name:'전송 이어서 하기'}));
+journal.rerender(React.createElement(api.RecordJournal,journalProps));
 assert(within(journalList).getAllByRole('button').find(x=>x.textContent.includes('오늘 작성 현장')));
 assert(within(journalDetail).getByRole('heading',{name:'오늘 작성 현장'}));
 fireEvent.click(screen.getByRole('button',{name:/어제 완료 현장 완료/}));assert(within(journalDetail).getByRole('heading',{name:'어제 완료 현장'}));assert.equal(journalOpened,undefined);
