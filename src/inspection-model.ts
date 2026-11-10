@@ -23,3 +23,6 @@ export const localDate=()=>{const d=new Date();return new Date(d.getTime()-d.get
 export const itemKey=(s:number,i:number)=>`${s}-${i}`;
 export const count=(r:Inspection)=>Object.keys(r.answers).length;
 export const total=sections.reduce((n,s)=>n+s.items.length,0);
+export function firstIncompleteSection(answers:Inspection['answers']){
+ return sections.findIndex((section,index)=>section.items.some((_,item)=>!grades.includes(answers[itemKey(index,item)])));
+}
