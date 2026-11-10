@@ -1,5 +1,5 @@
 import { APP_VERSION } from '../../src/version';
-import { permissionKeys, type PermissionOverrides } from '../../src/access-control';
+import { canManageCalendar, permissionKeys, type PermissionOverrides } from '../../src/access-control';
 import { accountSelection, permissionColumns, permissionsFor, overridesFor, requirePermission } from './account-permissions';
 import { checkLoginBurst, verifyChallenge } from './login-protection';
 import type { Environment, Account, PublicAccount } from './bindings';
@@ -287,9 +287,12 @@ async function route(request: Request, env: Environment): Promise<Response> {
         if (request.headers.get('Origin') !== url.origin) throw new ApiError(403,'같은 사이트에서 연결해 주세요.');
         const hub = calendarEventHub(env);
         if (!hub) throw new ApiError(503,'실시간 연결을 사용할 수 없습니다.');
+        const mayEdit = canManageCalendar({role:account.role,permissions:permissionsFor(account)});
         return hub.fetch(new Request(request,{headers:{
             Upgrade:request.headers.get('Upgrade') || '',
             'X-Calendar-Session-Expires':String(account.session_expires_at || 0),
+            'X-Calendar-Session':await digest(sessionToken(request)!),
+            ...(mayEdit ? {'X-Calendar-Editor':account.id,'X-Calendar-Editor-Name':account.display_name} : {}),
         }}));
     }
     if (path === '/api/calendar' || path.startsWith('/api/calendar/')) {

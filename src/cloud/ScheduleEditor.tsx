@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { Site } from '../inspection-model';
 import { knownValue } from '../site-details';
 import { overlappingVisits, repeatOptions, visitLabel, workKinds, workStates, type SavedSchedule, type Visit } from './calendar-model';
 
-export function ScheduleEditor({ initial, sites, visits, effectiveDate, onClose, onSave, onDelete, onSeries, onFuture }: {
+export function ScheduleEditor({ initial, sites, visits, effectiveDate, editorStatus, onClose, onSave, onDelete, onSeries, onFuture }: {
     initial: SavedSchedule;
     sites: Site[];
     visits: Map<string, Visit[]>;
     effectiveDate?: string;
+    editorStatus?: ReactNode;
     onClose: () => void;
     onSave: (value: SavedSchedule) => Promise<void>;
     onDelete: () => Promise<void>;
@@ -42,6 +43,7 @@ export function ScheduleEditor({ initial, sites, visits, effectiveDate, onClose,
                 <h2 id="schedule-editor-title">{value.repeat !== 'none' && value.revision ? '반복 일정 수정' : value.revision || value.seriesId ? '일정 수정' : '새 일정'}</h2>
                 <button type="button" disabled={busy} onClick={onClose}>닫기</button>
             </header>
+            {editorStatus}
             {onSeries && <p className="schedule-editor-note">이 날짜의 일정만 수정합니다. <button type="button" disabled={busy} onClick={onSeries}>현재 반복 규칙 편집</button>
                 {onFuture && <button type="button" disabled={busy} onClick={onFuture}>이 날짜부터 변경</button>}</p>}
             {effectiveDate ? <p className="schedule-editor-note">{effectiveDate}부터 새 반복 규칙을 적용합니다. 이전 날짜와 개별 변경한 일정은 보존됩니다.</p> :
