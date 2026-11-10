@@ -128,7 +128,39 @@ try {
     assert(viewer.messages.every(message=>message.editors.length<=1 && message.editors.every(editor=>editor.name==='manager')));
     firstTab.socket.close(1000,'Test complete');
     viewer.socket.close(1000,'Test complete');
-    await call(path, 200, { cookie:owner.cookie, method:'DELETE', body:{revision:1} });
+    const moved = { ...schedule, date:'2026-11-10', notes:'감사 로그에 저장하지 않는 메모' };
+    const move = (date) => call(path, date === moved.date ? 200 : 409, {
+        cookie:manager.cookie, method:'PUT', body:{schedule:{...moved,date},revision:1},
+    });
+    await move(moved.date);
+    await move('2026-11-12');
+    await call(path, 200, { cookie:manager.cookie, method:'PUT', body:{schedule:moved,revision:2} });
+    await call(path, 200, { cookie:owner.cookie, method:'DELETE', body:{revision:3} });
+    const imported = { ...schedule, id:'import-'+'a'.repeat(64), repeat:'none' };
+    for (const added of [1,0]) {
+        const result = await call('calendar/import', 200, { cookie:manager.cookie, method:'POST', body:{schedules:[imported,imported]} });
+        assert.equal(result.data.added,added);
+    }
+    const logsPath = 'owner/history?scope=calendar';
+    await call(logsPath, 403, { cookie:worker.cookie });
+    await call(logsPath, 403, { cookie:manager.cookie });
+    const calendarLogs = (await call(logsPath, 200, { cookie:owner.cookie })).data.events;
+    assert.deepEqual(calendarLogs.map(event=>event.action).sort(),
+        ['calendar-created','calendar-deleted','calendar-imported','calendar-updated']);
+    const changed = calendarLogs.find(event=>event.action==='calendar-updated');
+    assert.equal(changed.detail.actorName,'manager');
+    assert.equal(changed.detail.before.date,schedule.date);
+    assert.equal(changed.detail.after.date,moved.date);
+    assert.equal(changed.detail.notesChanged,true);
+    assert(!JSON.stringify(calendarLogs).includes(moved.notes));
+    assert(!Object.hasOwn(changed.detail.after,'address'));
+    for (const account of [worker,manager,owner]) {
+        const personal = await call('my-history', 200, { cookie:account.cookie });
+        assert(personal.data.events.every(event=>!event.action.startsWith('calendar-')));
+    }
+    const management = await call('owner/history?scope=management', 200, { cookie:owner.cookie });
+    assert(management.data.events.every(event=>!event.action.startsWith('calendar-')));
+    console.log('PASS: calendar audit records committed changes once, encrypts before/after, and is owner-only');
     console.log('PASS: calendar editing is permission-gated and scoped to distinct occurrences; duplicate tabs count once');
     const record = { id: 'own', site, date: '2026-11-02T12:00', type: '', cycle: '', technician: '', answers: {}, rating: '',
         issues: '', action: '', assignee: '', due: '', actionState: '', notes: '', photos: [], history: [], status: 'draft', updated: new Date().toISOString() };

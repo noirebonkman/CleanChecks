@@ -1,4 +1,4 @@
-import { monthDays, occursOn, occurrenceId, repeatOptions, shiftDay, workKinds, workStates, type Schedule } from '../../src/cloud/calendar-model';
+import { monthDays, occursOn, occurrenceId, repeatOptions, ruleForDate, shiftDay, workKinds, workStates, type Schedule, type ScheduleRule } from '../../src/cloud/calendar-model';
 import { canManageCalendar } from '../../src/access-control';
 import { permissionsFor } from './account-permissions';
 import type { Account, Environment } from './bindings';
@@ -38,20 +38,42 @@ function schedule(value: unknown, key: string): Schedule {
 
 type ScheduleRow = { id: string; payload: string; revision: number; repeat_rule: string; series_id: string | null };
 
-async function importSchedules(request: Request, env: Environment) {
+function auditSnapshot(value: ScheduleRule | null) {
+    if (!value) return null;
+    const { siteName, title, kind, date, start, end, assignee, state, repeat, until } = value;
+    return { siteName, title, kind, date, start, end, assignee, state, repeat, until };
+}
+
+function auditInsert(env: Environment, account: Account, key: string, action: string, detail: string) {
+    return env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) SELECT ?,?,?,?,?,? WHERE changes()=1')
+        .bind(crypto.randomUUID(),account.id,key,action,detail,new Date().toISOString());
+}
+
+async function importSchedules(request: Request, env: Environment, account: Account) {
     const { schedules } = await jsonBody(request);
     if (!Array.isArray(schedules) || schedules.length < 1 || schedules.length > 50)
         throw new ApiError(400, '한 번에 1~50건씩 가져올 수 있습니다.');
-    const statements = await Promise.all(schedules.map(async input => {
+    const actorName = await open<string>(account.display_name,env);
+    const rows = await Promise.all(schedules.map(async input => {
         const key = id(input?.id);
         if (!/^import-[0-9a-f]{64}$/.test(key)) throw new ApiError(400, '가져오기 일정 번호를 확인해 주세요.');
         const value = schedule(input,key);
         if (value.seriesId || value.repeat !== 'none') throw new ApiError(400, '가져오기는 날짜별 일정을 지원합니다.');
-        return env.DB.prepare(`INSERT INTO calendar_schedules VALUES(?,?,?,?,?,?,?,1) ON CONFLICT(id) DO NOTHING`)
-            .bind(key,value.date,'','none',null,'',await seal(value,env));
+        return { key, date:value.date, payload:await seal(value,env), eventId:crypto.randomUUID(),
+            detail:await seal({ actorName, before:null, after:auditSnapshot(value) },env) };
     }));
-    const results = await env.DB.batch(statements);
-    return { added:results.reduce((total,result) => total + result.meta.changes,0) };
+    const batch = JSON.stringify(rows);
+    const [result] = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO calendar_schedules(id,scheduled_date,until_date,repeat_rule,series_id,original_date,payload,revision)
+            SELECT value->>'key',value->>'date','','none',NULL,'',value->>'payload',1 FROM json_each(?) WHERE 1
+            ON CONFLICT(id) DO NOTHING`).bind(batch),
+        // The encrypted payload is unique to this attempt, including on duplicate imports.
+        env.DB.prepare(`INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at)
+            SELECT DISTINCT j.value->>'eventId',?,s.id,'calendar-imported',j.value->>'detail',?
+            FROM json_each(?) j JOIN calendar_schedules s ON s.id=j.value->>'key' AND s.payload=j.value->>'payload'`)
+            .bind(account.id,new Date().toISOString(),batch)
+    ]);
+    return { added:result.meta.changes };
 }
 
 export async function calendarRoute(request: Request, env: Environment, account: Account, url: URL) {
@@ -71,26 +93,31 @@ export async function calendarRoute(request: Request, env: Environment, account:
 
     if (!canManageCalendar({role:account.role,permissions:permissionsFor(account)}))
         throw new ApiError(403, '일정 조회만 가능한 계정입니다.');
-    if (url.pathname === '/api/calendar/import' && request.method === 'POST') return importSchedules(request,env);
+    if (url.pathname === '/api/calendar/import' && request.method === 'POST') return importSchedules(request,env,account);
     const match = /^\/api\/calendar\/([a-zA-Z0-9_-]+)$/.exec(url.pathname);
     if (!match || !['PUT','DELETE'].includes(request.method)) throw new ApiError(404, '지원하지 않는 일정 요청입니다.');
     const key = id(match[1]), body = await jsonBody(request), expected = revision(body.revision);
     const conflict = () => new ApiError(409, '다른 기기에서 일정이 변경되었습니다. 새로고침한 뒤 다시 시도해 주세요.');
+    const existing = await env.DB.prepare('SELECT payload,revision,repeat_rule,series_id FROM calendar_schedules WHERE id=?')
+        .bind(key).first<ScheduleRow>();
+    if ((existing?.revision ?? 0) !== expected) throw conflict();
+    const previous = existing ? await open<Schedule>(existing.payload,env) : null;
+    const actorName = await open<string>(account.display_name,env);
     if (request.method === 'DELETE') {
-        const result = await env.DB.prepare('DELETE FROM calendar_schedules WHERE id=? AND revision=? AND series_id IS NULL')
-            .bind(key,expected).run();
+        if (!existing || existing.series_id) throw conflict();
+        const detail = await seal({ actorName, before:auditSnapshot(previous), after:null },env);
+        const [result] = await env.DB.batch([
+            env.DB.prepare('DELETE FROM calendar_schedules WHERE id=? AND revision=? AND series_id IS NULL').bind(key,expected),
+            auditInsert(env,account,key,'calendar-deleted',detail)
+        ]);
         if (result.meta.changes !== 1) throw conflict();
         return { ok:true };
     }
     const value = schedule(body.schedule,key);
-    const existing = await env.DB.prepare('SELECT payload,revision,repeat_rule,series_id FROM calendar_schedules WHERE id=?')
-        .bind(key).first<ScheduleRow>();
-    if ((existing?.revision ?? 0) !== expected) throw conflict();
     if (existing && (existing.series_id !== (value.seriesId || null) || (existing.repeat_rule === 'none') !== (value.repeat === 'none')))
         throw new ApiError(400, '저장된 일정의 단발·반복 유형은 변경할 수 없습니다.');
     const effectiveDate = dateValue(body.effectiveDate);
-    if (existing && value.repeat !== 'none') {
-        const previous = await open<Schedule>(existing.payload,env);
+    if (previous && value.repeat !== 'none') {
         const { previousRules = [], ...currentRule } = previous;
         if (effectiveDate) {
             if (value.date < effectiveDate || !occursOn(previous,effectiveDate))
@@ -108,17 +135,29 @@ export async function calendarRoute(request: Request, env: Environment, account:
     } else if (effectiveDate) {
         throw new ApiError(400, '반복 일정의 날짜를 확인해 주세요.');
     }
+    let original = previous;
     if (value.seriesId && !existing) {
         const parent = await env.DB.prepare('SELECT payload FROM calendar_schedules WHERE id=? AND repeat_rule<>?')
             .bind(value.seriesId,'none').first<ScheduleRow>();
-        if (!parent || !occursOn(await open<Schedule>(parent.payload,env),value.originalDate)) throw conflict();
+        const rule = parent && ruleForDate(await open<Schedule>(parent.payload,env),value.originalDate);
+        if (!rule) throw conflict();
+        original = { ...rule, date:value.originalDate, repeat:'none', until:'' };
     }
     const encrypted = await seal(value,env);
-    const result = expected === 0
-        ? await env.DB.prepare(`INSERT INTO calendar_schedules VALUES(?,?,?,?,?,?,?,1)
-            ON CONFLICT(id) DO NOTHING`).bind(key,value.date,value.until,value.repeat,value.seriesId || null,value.originalDate,encrypted).run()
-        : await env.DB.prepare(`UPDATE calendar_schedules SET scheduled_date=?,until_date=?,repeat_rule=?,payload=?,revision=revision+1
-            WHERE id=? AND revision=?`).bind(value.previousRules?.[0]?.date || value.date,value.until,value.repeat,encrypted,key,expected).run();
+    const write = expected === 0
+        ? env.DB.prepare(`INSERT INTO calendar_schedules VALUES(?,?,?,?,?,?,?,1)
+            ON CONFLICT(id) DO NOTHING`).bind(key,value.date,value.until,value.repeat,value.seriesId || null,value.originalDate,encrypted)
+        : env.DB.prepare(`UPDATE calendar_schedules SET scheduled_date=?,until_date=?,repeat_rule=?,payload=?,revision=revision+1
+            WHERE id=? AND revision=?`).bind(value.previousRules?.[0]?.date || value.date,value.until,value.repeat,encrypted,key,expected);
+    const before = auditSnapshot(original), after = auditSnapshot(value);
+    const notesChanged = !!original && original.notes !== value.notes;
+    const addressChanged = !!original && original.address !== value.address;
+    const changed = !existing || JSON.stringify(before) !== JSON.stringify(after) || notesChanged || addressChanged
+        || original?.siteId !== value.siteId || !!effectiveDate;
+    const detail = changed ? await seal({ actorName, before, after, effectiveDate, notesChanged, addressChanged },env) : null;
+    const [result] = await env.DB.batch(detail ? [
+        write, auditInsert(env,account,key,original ? 'calendar-updated' : 'calendar-created',detail)
+    ] : [write]);
     if (result.meta.changes !== 1) throw conflict();
     return { revision:expected+1, schedule:value };
 }

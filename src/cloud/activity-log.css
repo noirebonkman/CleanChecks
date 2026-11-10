@@ -1,0 +1,12 @@
+.activity-log .page-heading { flex-wrap: wrap; gap: .75rem; }
+.activity-log .page-heading button { min-height: 44px; }
+.activity-log .activity-entry, .activity-personal li { border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.activity-log .activity-entry:last-child, .activity-personal li:last-child { border-bottom: 0; }
+.activity-log .activity-entry summary { min-height: 44px; padding-block: .65rem; cursor: pointer; }
+.activity-log small { display: block; color: var(--muted); margin-block-start: .25rem; }
+.activity-log dl { margin: .3rem 0 .8rem; }
+.activity-log dl > div { display: flex; flex-wrap: wrap; gap: .25rem .75rem; margin-block: .35rem; }
+.activity-log dt { font-weight: 700; }
+.activity-log dd { margin: 0; }
+.activity-personal { list-style: none; padding: 0; margin: 0; }
+.activity-personal li { padding-block: .65rem; }

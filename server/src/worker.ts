@@ -461,7 +461,10 @@ async function route(request: Request, env: Environment): Promise<Response> {
     if (path === '/api/owner/history' && method === 'GET') {
         if (account.role !== 'owner')
             throw new ApiError(403, '최상위 운영자만 확인할 수 있습니다.');
-        const rows = await env.DB.prepare('SELECT * FROM owner_actions ORDER BY at DESC LIMIT 200').all<{
+        const scope = url.searchParams.get('scope');
+        const filter = scope === 'calendar' ? " WHERE action GLOB 'calendar-*'"
+            : scope === 'management' ? " WHERE action NOT GLOB 'calendar-*'" : '';
+        const rows = await env.DB.prepare('SELECT * FROM owner_actions' + filter + ' ORDER BY at DESC, rowid DESC LIMIT 200').all<{
             id: string;
             actor_id: string;
             target_id: string;

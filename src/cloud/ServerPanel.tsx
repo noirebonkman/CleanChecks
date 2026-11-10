@@ -1,7 +1,6 @@
 import { createPortal } from 'react-dom';
 import { hasPermission } from '../access-control';
 import { UserManagement, roleName } from './UserManagement';
-import { historyLabel } from './history-labels';
 import { useEffect, useRef, useState } from 'react';
 import type { State } from '../inspection-model';
 import { post, request, type ServerUser } from './client';
@@ -23,9 +22,8 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
     const [status, setStatus] = useState('서버 전송 대기'), [error, setError] = useState('');
     const [busy, setBusy] = useState(false), [tick, setTick] = useState(0);
     const [conflicts, setConflicts] = useState<string[]>([]);
-    const [history, setHistory] = useState<Record<string, string>[]>([]);
     const [trash, setTrash] = useState<(RemoteRecord & { expiresAt: number })[]>([]);
-    const [historyLoaded, setHistoryLoaded] = useState(false), [trashLoaded, setTrashLoaded] = useState(false);
+    const [trashLoaded, setTrashLoaded] = useState(false);
     const [lastSynced, setLastSynced] = useState<string | null>(null);
     const [storageUsage, setStorageUsage] = useState<{used:number;limit:number}|null>(null);
     const access = useRef({ getState, save }); access.current = { getState, save };
@@ -91,9 +89,6 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
                 event.preventDefault(); const fields = new FormData(event.currentTarget);
                 void run(async () => { if (fields.get('password') !== fields.get('confirm')) throw Error('새 비밀번호가 서로 다릅니다.'); await post('password', { current: fields.get('current'), password: fields.get('password') }); window.dispatchEvent(new Event('cleanchecks:server-logout')); });
             }}><label>현재 비밀번호<input name="current" type="password" autoComplete="current-password" required/></label><label>새 비밀번호<input name="password" type="password" autoComplete="new-password" minLength={10} maxLength={128} placeholder="10자 이상" required/></label><label>새 비밀번호 확인<input name="confirm" type="password" autoComplete="new-password" minLength={10} required/></label><button disabled={busy}>변경 후 다시 로그인</button></form></details>
-            <button className="setting-row" onClick={() => void run(async () => { setHistory((await request<{ events: Record<string,string>[] }>('my-history')).events); setHistoryLoaded(true); })}>내 변경이력 보기</button>
-            {historyLoaded && history.length === 0 && <p className="hint" role="status">표시할 변경이력이 없습니다.</p>}
-            {history.map((item, index) => <p key={index}>{new Date(item.at).toLocaleString('ko-KR')} · {historyLabel(item.action)} · {data.records.find(record=>record.id===item.target_id)?.site.name || '계정 작업'}</p>)}
             </>}
             {section === 'owner' && user.role === 'owner' && <>
                 <h2>어드민 전용 메뉴</h2><OwnerRecordTools/>
