@@ -29,6 +29,12 @@ globalThis.fetch=async(url,options={})=>{
  if(path==='/api/logout'){activeUser=null;return Response.json({ok:true});}
  if(path==='/api/sites')return Response.json({sites:[{site,revision:1}]});
  if(path==='/api/my-history')return Response.json({events:[]});
+ if(path==='/api/owner/history?scope=calendar'){
+  assert.equal(activeUser?.role,'owner');
+  const before={siteName:'권한 검증 현장',title:'청소',date:'2026-11-10',start:'09:00',end:'10:00',kind:'정기청소',state:'예정',assignee:'',repeat:'none',until:''};
+  return Response.json({events:[{id:'calendar-log',at:'2026-11-10T05:00:00Z',action:'calendar-updated',
+   detail:{actorName:'일정 관리자',before,after:{...before,date:'2026-11-12'}}}]});
+ }
  if(path==='/api/records'||path==='/api/admin/records')return Response.json({records:[],nextCursor:null});
  if(path==='/api/accounts/promotion-target'&&options.method==='PATCH'){
   if(failPromotion){failPromotion=false;return Response.json({error:'테스트 오류'},{status:409});}
@@ -146,8 +152,17 @@ try{
    }
    fireEvent.click(screen.getByRole('button',{name:'일반 설정',exact:true}));
   }
-  fireEvent.click(screen.getByRole('button',{name:'내 변경이력 보기'}));
+  fireEvent.click(screen.getByRole('button',{name:'활동 로그'}));
+  await screen.findByRole('heading',{name:'활동 로그'});
+  assert(!screen.queryByRole('heading',{name:'설정'}));
   await screen.findByText('표시할 변경이력이 없습니다.');
+  assert.equal(!!screen.queryByRole('button',{name:'일정 변경',exact:true}),role==='owner');
+  if(role==='owner'){
+   fireEvent.click(screen.getByRole('button',{name:'일정 변경',exact:true}));
+   await screen.findByText(/일정 관리자 · 2026-11-10 → 2026-11-12/);
+  }
+  fireEvent.click(screen.getByRole('button',{name:'설정으로 돌아가기'}));
+  await screen.findByRole('heading',{name:/^설정/});
 
   assert(!screen.queryByLabelText('관리자 PIN'));assert(!screen.queryByRole('button',{name:'관리자 로그인',exact:true}));
   assert.equal(!!screen.queryByRole('heading',{name:'관리자 메뉴 · 현장 관리'}),sites);

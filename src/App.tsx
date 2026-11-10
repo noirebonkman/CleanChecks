@@ -6,6 +6,7 @@ import { downloadInspectionPhotos, photoBlob, photoSource } from './cloud/inspec
 import { subscribeAppUpdates } from './app-updates';
 import { hasPermission } from './access-control';
 import { ServerPanel, publishSites } from './cloud/ServerPanel';
+import { ActivityLog } from './cloud/ActivityLog';
 import {CloudSettings} from './cloud/CloudSettings';
 import {post as serverPost,request as serverRequest,type ServerUser} from './cloud/client';
 import {readTheme} from './preferences';
@@ -52,7 +53,8 @@ export default function App({session,onLogout,onWorkspaceMenu,settingsOpen,onOpe
  const[updateReady,setUpdateReady]=useState(false);const updater=useRef<(()=>Promise<void>)|null>(null);
  useEffect(()=>{const ready=(apply:()=>Promise<void>)=>{updater.current=apply;setUpdateReady(true)};const unsubscribe=subscribeAppUpdates(ready);const receive=(e:Event)=>ready((e as CustomEvent).detail);window.addEventListener('lucent:update',receive);return()=>{unsubscribe();window.removeEventListener('lucent:update',receive)}},[]);
  const[data,setData]=useState<State|null>(null),[fatal,setFatal]=useState(''),[person,setPerson]=useState(''),[localAdmin,setAdmin]=useState(false),[workspaceScreen,setScreen]=useState('home'),[drawer,setDrawer]=useState(false),[expanded,setExpanded]=useState<string[]>([]),[modal,setModal]=useState<ModalValue>(null),[theme,setTheme]=useState<string>(readTheme),[step,setStep]=useState(0),[recordId,setRecordId]=useState(''),[editing,setEditing]=useState(false),[query,setQuery]=useState(''),[filter,setFilter]=useState('전체'),[notice,setNotice]=useState(''),[saved,setSaved]=useState('저장됨'),[invalid,setInvalid]=useState<string[]>([]),[busy,setBusy]=useState(false),[syncStatus,setSyncStatus]=useState(''),[siteQuery,setSiteQuery]=useState('');
- const screen=settingsOpen?'settings':workspaceScreen;
+ const[logsOpen,setLogsOpen]=useState(false);
+ const screen=logsOpen?'logs':settingsOpen?'settings':workspaceScreen;
  const [validationAttempt,setValidationAttempt]=useState(0);
  const[settingsSection,setSettingsSection]=useState<'general'|'users'|'owner'>('general');
  const[settingsHost,setSettingsHost]=useState<HTMLDivElement|null>(null);
@@ -104,7 +106,9 @@ export default function App({session,onLogout,onWorkspaceMenu,settingsOpen,onOpe
   if(settingsOpen)onCloseSettings?.(true);
  };
  useEffect(()=>{if(!settingsOpen)setSettingsSection('general');},[settingsOpen]);
- useBackNavigation({modal:!!modal,drawer,screen,closeModal:()=>setModal(null),closeDrawer:()=>setDrawer(false),home:()=>settingsOpen?onCloseSettings?.():go('home')});
+ const logLink=useRef<HTMLButtonElement>(null);
+ const closeLogs=()=>{setLogsOpen(false);window.scrollTo({top:0});requestAnimationFrame(()=>logLink.current?.focus());};
+ useBackNavigation({modal:!!modal,drawer,screen,closeModal:()=>setModal(null),closeDrawer:()=>setDrawer(false),home:()=>logsOpen?closeLogs():settingsOpen?onCloseSettings?.():go('home')});
  const current=data?.staff.find(p=>p.id===person),record=data?.records.find(r=>r.id===recordId),records=data?.records.filter(r=>r.staffId===person)||[];
  const editable=canWriteOwn&&!writeConflict&&!!record&&(!session||record.staffId===session.id)&&record.staffId===person&&(record.status==='draft'||editing||!!record.pendingCompletion);
  const update=(patch:Partial<Inspection>):Promise<boolean>=>{const d=state.current!,r=d.records.find(r=>r.id===recordId);if(!canWriteOwn||!r||r.staffId!==person||(session&&r.staffId!==session.id)||!(r.status==='draft'||editing||r.pendingCompletion))return Promise.resolve(false);if(!auditBase.current)auditBase.current=structuredClone(r);const now=new Date().toISOString();const modified={...r,...patch,pendingCompletion:session&&r.status==='complete'?now:r.pendingCompletion,updated:now,modified:r.modified||r.status==='complete',history:r.status==='complete'?[...r.history.slice(-199),{at:now}]:r.history};const saving=commit({...d,records:d.records.map(x=>x.id===r.id?modified:x)}).then(()=>true).catch(()=>false);clearTimeout(auditTimer.current);auditTimer.current=setTimeout(flushAudit,1000);return saving;};
@@ -212,8 +216,8 @@ export default function App({session,onLogout,onWorkspaceMenu,settingsOpen,onOpe
  {!data.staff.length&&<p className="side-empty">등록된 점검자가 없습니다.<br/>아래 점검자 추가에서 이름을 등록해 주세요.</p>}
  </div><div className="side-bottom">{onWorkspaceMenu&&<button className="nav" onClick={()=>void leaveInspection()}><ArrowLeft size={18}/>서비스 선택</button>}{admin&&<button className={'nav '+(screen==='sites'?'active':'')} onClick={()=>go('sites')}><MapPin size={20}/>현장 관리<span className="tiny">관리자</span></button>}<button className={'nav '+(screen==='settings'?'active':'')} onClick={()=>go('settings')}><Settings size={20}/>설정</button>{session?<button className="nav" onClick={()=>{void leaveAccount().catch(()=>notify('연결을 확인한 후 로그아웃을 다시 시도해 주세요.'));}}><LogOut size={18}/>로그아웃</button>:<>{person&&<button className="nav" onClick={()=>{flushAudit();setPerson('');go('home');notify('점검자 선택을 해제했습니다.')}}><LogOut size={18}/>점검자 선택 해제</button>}<button className="nav" onClick={staffForm}><Plus size={20}/>점검자 추가</button></>}<div className="preview-label"><span/>{saved}</div></div></aside>}
  <main id="main-content" tabIndex={-1} inert={busy||!!modal||(mobile&&drawer)} aria-hidden={busy||modal||(mobile&&drawer)?true:undefined}><header className="topbar">
-  {settingsOpen
-    ? <button className="header-icon-button" aria-label="돌아가기" title="돌아가기" onClick={()=>onCloseSettings?.()}><ArrowLeft size={21} aria-hidden="true"/></button>
+  {settingsOpen||logsOpen
+    ? <button className="header-icon-button" aria-label={logsOpen?'설정으로 돌아가기':'돌아가기'} title={logsOpen?'설정으로 돌아가기':'돌아가기'} onClick={logsOpen?closeLogs:()=>onCloseSettings?.()}><ArrowLeft size={21} aria-hidden="true"/></button>
     : <div><button className="icon mobile app-menu" aria-label="메뉴 열기" aria-expanded={drawer} aria-controls="inspector-sidebar" onClick={()=>setDrawer(true)}><Menu/></button>
        <span>워크스페이스</span><ChevronRight size={14}/><strong>{screen==='home'?'점검 기록':screen==='inspect'?'현장점검':screen==='sites'?'현장 관리':'설정'}</strong>
       </div>}
@@ -229,7 +233,8 @@ export default function App({session,onLogout,onWorkspaceMenu,settingsOpen,onOpe
    </>}
   </span>
  </header>
- {session&&<ServerPanel user={session} settingsTarget={settingsHost} visible={screen==='settings'} section={settingsSection} data={data} getState={()=>state.current!} save={commit}/>}
+ {session&&<ServerPanel user={session} settingsTarget={logsOpen?null:settingsHost} visible={screen==='settings'||logsOpen} section={settingsSection} data={data} getState={()=>state.current!} save={commit}/>}
+ {session&&logsOpen&&<ActivityLog user={session} records={data.records}/>}
  {writeConflict?<div className="storage-banner" role="alert"><strong>다른 탭에서 기록이 변경되었습니다.</strong><p>덮어쓰기를 막기 위해 수정을 멈췄습니다. {session?'다른 탭의 상태를 확인한 뒤 최신 기록을 불러와 주세요.':'필요한 기록을 백업한 후 최신 기록을 불러와 주세요.'}</p><div>{!session&&<button disabled={!person} className="secondary" onClick={backup}>내 기록 백업</button>}<button className="primary" onClick={loadLatest}>최신 기록 불러오기</button></div></div>:saved==='저장 실패'&&<div className="storage-banner" role="alert"><strong>기기에 저장하지 못했습니다.</strong><p>{session?'이 화면을 유지한 채 저장 공간을 확인해 주세요.':'이 화면을 유지한 채 저장 공간을 확인하거나 기록을 백업해 주세요.'}</p><div><button className="primary" onClick={()=>void commit(state.current!).catch(()=>{})}>저장 다시 시도</button>{!session&&<button className="secondary" disabled={!person} onClick={backup}>내 기록 백업</button>}</div></div>}
  {updateReady&&<div className="update-banner">새 버전이 준비되었습니다.<button disabled={writeConflict||busy} onClick={async()=>{try{flushAudit();await logQueue.current;await commit(state.current!);await updater.current?.()}catch{notify('저장 상태를 확인한 후 다시 시도해 주세요.')}}}>저장 후 새로 열기</button></div>}
  {screen==='home'&&<RecordJournal canCreate={canWriteOwn} editableStaffId={session?.id} key={person} records={records} name={current?.name||''} query={query} filter={filter} onQuery={setQuery} onFilter={setFilter} onNew={()=>basic()} onOpen={openRecord} onExport={exportRecord} emptyAction={session?null:!data.staff.length?<button className="secondary" onClick={staffForm}><Plus size={18}/>점검자 이름 등록</button>:<div className="login-choices">{data.staff.filter(p=>p.active).map(p=><button className="secondary" onClick={()=>login(p)} key={p.id}>{p.name}<ChevronRight size={14}/></button>)}</div>}/>}
@@ -274,6 +279,7 @@ export default function App({session,onLogout,onWorkspaceMenu,settingsOpen,onOpe
    <button aria-pressed={settingsSection==='general'} onClick={()=>setSettingsSection('general')}><Settings size={16} aria-hidden="true"/>일반 설정</button>
    {hasPermission(session,'manageUsers')&&<button aria-pressed={settingsSection==='users'} onClick={()=>setSettingsSection('users')}><Users size={16} aria-hidden="true"/>사용자 관리</button>}
    {session.role==='owner'&&<button aria-pressed={settingsSection==='owner'} onClick={()=>setSettingsSection('owner')}><ShieldCheck size={16} aria-hidden="true"/>어드민 도구</button>}
+   <button ref={logLink} onClick={()=>{setLogsOpen(true);window.scrollTo({top:0});}}><History size={16} aria-hidden="true"/>활동 로그</button>
   </nav>
   <div className="settings-account" ref={setSettingsHost}/>
   {settingsSection==='general'&&<>
