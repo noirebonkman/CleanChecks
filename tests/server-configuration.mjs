@@ -13,6 +13,11 @@ execFileSync(process.execPath,[resolve(root,'tools/update-server-configuration.m
 const result=JSON.parse(readFileSync(resolve(root,'server/wrangler.jsonc'),'utf8'));
 assert.deepEqual(result,{
     ...original,
+    vars:{...original.vars,REQUIRE_TURNSTILE:'true'},
+    ratelimits:[
+        {name:'AUTH_REQUEST_LIMITER',namespace_id:'54681001',simple:{limit:60,period:60}},
+        {name:'API_REQUEST_LIMITER',namespace_id:'54681002',simple:{limit:1200,period:60}},
+    ],
     assets:{...original.assets,directory:'../.server-build/v0.95'},
     triggers:{crons:['0 1 * * *','0 * * * *']},
     durable_objects:{bindings:[{name:'CALENDAR_EVENTS',class_name:'CalendarEvents'}]},
