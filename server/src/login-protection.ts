@@ -9,7 +9,7 @@ export async function checkLoginBurst(env: Environment) {
     if (!row || row.failures > 120) throw new ApiError(429, '요청이 많습니다. 잠시 후 다시 시도해 주세요.');
 }
 
-export async function verifyChallenge(request: Request, token: unknown, env: Environment) {
+export async function verifyChallenge(request: Request, token: unknown, env: Environment, action: 'login' | 'access' = 'login') {
     // Local previews listen on loopback only and must not use production challenge keys.
     if (['localhost','127.0.0.1','[::1]'].includes(new URL(request.url).hostname)) return;
     // No IP or device fingerprint is retained by the application.
@@ -29,7 +29,7 @@ export async function verifyChallenge(request: Request, token: unknown, env: Env
         });
     } catch { throw new ApiError(503, '로봇 방지 확인에 연결하지 못했습니다. 다시 시도해 주세요.'); }
     const result = await response.json() as { success: boolean; hostname?: string; action?: string };
-    if (!response.ok || !result.success || result.hostname !== new URL(request.url).hostname || result.action !== 'login') {
+    if (!response.ok || !result.success || result.hostname !== new URL(request.url).hostname || result.action !== action) {
         throw new ApiError(403, '로봇 방지 확인이 만료되었습니다. 다시 시도해 주세요.');
     }
 }

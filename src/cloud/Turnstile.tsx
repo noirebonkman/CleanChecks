@@ -18,20 +18,21 @@ function loadChallenge() {
     });
     return loader;
 }
-export function Turnstile({ siteKey, onToken, onError }: { siteKey: string; onToken: (token: string) => void; onError: (message: string) => void }) {
+export function Turnstile({ siteKey, action = 'login', onToken, onError }: { siteKey: string; action?: 'login' | 'access'; onToken: (token: string) => void; onError: (message: string) => void }) {
     const element = useRef<HTMLDivElement>(null);
     const callbacks = useRef({ onToken, onError }); callbacks.current = { onToken, onError };
     useEffect(() => {
         let active = true, widget: string | undefined;
         void loadChallenge().then(() => {
             if (active && element.current && window.turnstile) widget = window.turnstile.render(element.current, {
-                sitekey: siteKey, action: 'login', theme: 'auto', size: 'flexible',
+                sitekey: siteKey, action, theme: 'auto', size: 'flexible',
+                execution: 'render', appearance: 'interaction-only', language: 'ko',
                 callback: (token: string) => callbacks.current.onToken(token),
                 'expired-callback': () => callbacks.current.onToken(''),
                 'error-callback': () => { callbacks.current.onToken(''); callbacks.current.onError('로봇 방지 확인을 다시 시도해 주세요.'); },
             });
         }).catch(error => { if (active) callbacks.current.onError(error.message); });
         return () => { active = false; if (widget) window.turnstile?.remove(widget); };
-    }, [siteKey]);
+    }, [siteKey, action]);
     return <div className="login-challenge" ref={element} aria-label="로봇 방지 확인"/>;
 }

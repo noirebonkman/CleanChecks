@@ -14,6 +14,10 @@ try{
  globalThis.fetch=async(url,options)=>{submitted=options.body;return Response.json({success:true,hostname:'cleanchecks.example.workers.dev',action:'login'});};
  await verifyChallenge(request,'single-use-token',env);
  assert.equal(submitted.get('secret'),'private-secret');assert.equal(submitted.get('response'),'single-use-token');assert(!submitted.has('remoteip'));
+ await assert.rejects(()=>verifyChallenge(request,'login-token',env,'access'),error=>error.status===403);
+ globalThis.fetch=async()=>Response.json({success:true,hostname:'cleanchecks.example.workers.dev',action:'access'});
+ await verifyChallenge(request,'access-token',env,'access');
+ await assert.rejects(()=>verifyChallenge(request,'access-token',env),error=>error.status===403);
  globalThis.fetch=async()=>Response.json({success:true,hostname:'attacker.example',action:'login'});
  await assert.rejects(()=>verifyChallenge(request,'token',env),error=>error.status===403);
  globalThis.fetch=async()=>Response.json({success:true,hostname:'cleanchecks.example.workers.dev',action:'other'});

@@ -48,6 +48,45 @@ globalThis.fetch=async(url,options={})=>{
  return Response.json({error:'지원하지 않음'},{status:404});
 };
 try{
+ const defaultFetch=globalThis.fetch;
+ const widgets=[];
+ let accessChecks=0,sessionChecks=0;
+ window.turnstile={
+  render(element,options){widgets.push(options);return String(widgets.length);},
+  remove(){},
+ };
+ globalThis.fetch=async(url,options={})=>{
+  if(String(url)==='/api/auth-config')return Response.json({setupRequired:false,turnstileSiteKey:'test-site-key'});
+  if(String(url)==='/api/access-check'){
+   accessChecks++;
+   const valid=JSON.parse(options.body).challenge==='valid-access-token';
+   return Response.json(valid?{ok:true}:{error:'접속 검사 재시도'},{status:valid?200:403});
+  }
+  if(String(url)==='/api/session')sessionChecks++;
+  return defaultFetch(url,options);
+ };
+ render(React.createElement(api.LoginApplication));
+ await screen.findByRole('heading',{name:'접속을 확인하고 있습니다'});
+ await waitFor(()=>assert.equal(widgets.length,1));
+ assert.equal(widgets[0].action,'access');
+ assert.equal(widgets[0].execution,'render');
+ assert.equal(widgets[0].appearance,'interaction-only');
+ assert.equal(sessionChecks,0);
+ assert(!screen.queryByLabelText('비밀번호'));
+ await act(async()=>widgets[0].callback('expired-access-token'));
+ await screen.findByText('접속 검사 재시도');
+ assert.equal(sessionChecks,0);
+ fireEvent.click(screen.getByRole('button',{name:'다시 확인',exact:true}));
+ await waitFor(()=>assert.equal(widgets.length,2));
+ await act(async()=>widgets[1].callback('valid-access-token'));
+ await screen.findByRole('heading',{name:'로그인'});
+ assert.equal(accessChecks,2);
+ assert.equal(sessionChecks,1);
+ await waitFor(()=>assert.equal(widgets.at(-1).action,'login'));
+ cleanup();
+ globalThis.fetch=defaultFetch;
+ delete window.turnstile;
+ console.log('PASS: automatic Cloudflare entry check waits for server verification, supports retry, then restores the session');
  api.publishAppUpdate(async()=>{});
  render(React.createElement(api.LoginApplication));
  await screen.findByRole('heading',{name:'로그인'});
