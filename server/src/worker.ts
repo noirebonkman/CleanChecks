@@ -90,6 +90,12 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const installed = await env.DB.prepare('SELECT id FROM installation WHERE id=1').first();
         return send({ setupRequired: !installed, turnstileSiteKey: loopback ? '' : env.TURNSTILE_SITE_KEY || '', localDevelopment: loopback });
     }
+    if (path === '/api/access-check' && method === 'POST') {
+        await checkLoginBurst(env);
+        const body = await jsonBody(request);
+        await verifyChallenge(request, body.challenge, env, 'access');
+        return send({ ok:true });
+    }
     if (path === '/api/health' && method === 'GET') {
         try {
             if (fromBase64(env.APP_DATA_KEY || '').length !== 32)

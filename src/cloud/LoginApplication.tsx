@@ -12,6 +12,13 @@ import './login-and-access.css';
 const FieldCalendar = lazy(() => import('./FieldCalendar').then(module => ({ default:module.FieldCalendar })));
 
 type Configuration = { setupRequired: boolean; turnstileSiteKey: string };
+function AccessPrivacyNotice() {
+    return <details className="access-privacy"><summary>자동 접속 검사 개인정보 안내</summary>
+        <p>이 사이트는 자동화된 접속을 확인하기 위해 Cloudflare Turnstile을 사용합니다.
+            검사 과정의 데이터 처리에 관한 사항은 <a href="https://www.cloudflare.com/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer">Turnstile 개인정보 부속정책</a>과
+            <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer"> Cloudflare 개인정보처리방침</a>을 확인해 주세요.</p>
+    </details>;
+}
 export function LoginApplication() {
     const [user, setUser] = useState<ServerUser | null>(null);
     const [workspace, setWorkspace] = useState<'menu' | 'inspection' | 'calendar'>('menu');
@@ -21,6 +28,10 @@ export function LoginApplication() {
     const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
     const [setup, setSetup] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
     const [token, setToken] = useState(''), [challengeVersion, setChallengeVersion] = useState(0);
+    const [entryVerified, setEntryVerified] = useState(false);
+    const [entryError, setEntryError] = useState('');
+    const [entryVersion, setEntryVersion] = useState(0);
+    const entryChecking = useRef(false);
     const expiresAt = useRef<number | null>(null);
     const userRef = useRef<ServerUser | null>(null), changing = useRef(false);
     userRef.current = user;
@@ -32,14 +43,46 @@ export function LoginApplication() {
         await prepareAccountWorkspace(next);
         setTemporaryUser(null); setUser(next);
     };
+    const restoreSession = async () => {
+        try {
+            const result=await request<{user:ServerUser;expiresAt?:number}>('session');
+            await enter(result.user,result.expiresAt);
+        } catch (cause) {
+            if (!(cause instanceof ServerError && cause.status === 401)) throw cause;
+        }
+    };
     const restore = async () => {
         setLoading(true); setError('');
         try {
-            setConfiguration(await request<Configuration>('auth-config'));
-            try { const result=await request<{user:ServerUser;expiresAt?:number}>('session');await enter(result.user,result.expiresAt); }
-            catch (cause) { if (!(cause instanceof ServerError && cause.status === 401)) throw cause; }
+            const next = await request<Configuration>('auth-config');
+            setConfiguration(next);
+            if (next.turnstileSiteKey) {
+                setEntryVerified(false);
+                setEntryError('');
+                setEntryVersion(value => value+1);
+            } else {
+                setEntryVerified(true);
+                await restoreSession();
+            }
         } catch (cause) { setError(cause instanceof Error ? cause.message : '서버에 연결하지 못했습니다.'); }
         finally { setLoading(false); }
+    };
+    const verifyEntry = async (challenge: string) => {
+        if (!challenge || entryChecking.current || entryVerified) return;
+        entryChecking.current = true;
+        setEntryError('');
+        try {
+            await post('access-check', { challenge });
+            setLoading(true);
+            setEntryVerified(true);
+            try { await restoreSession(); }
+            catch (cause) { setError(cause instanceof Error ? cause.message : '서버에 연결하지 못했습니다.'); }
+            finally { setLoading(false); }
+        } catch (cause) {
+            setEntryError(cause instanceof Error ? cause.message : '접속 확인을 다시 시도해 주세요.');
+        } finally {
+            entryChecking.current = false;
+        }
     };
     useEffect(() => { void restore(); }, []);
     useEffect(() => {
@@ -82,6 +125,23 @@ export function LoginApplication() {
         } catch (cause) { setError(cause instanceof Error ? cause.message : '로그인하지 못했습니다.'); }
         finally { changing.current = false; setBusy(false); setToken(''); setChallengeVersion(value => value + 1); }
     };
+    if (configuration?.turnstileSiteKey && !entryVerified) {
+        return <div className="login-shell access-screen" data-theme={readTheme()}>
+            <main className="login-card access-verification" aria-labelledby="access-verification-title">
+                <ShieldCheck size={36} aria-hidden="true"/>
+                <h1 id="access-verification-title">접속을 확인하고 있습니다</h1>
+                <p role="status">Cloudflare 자동 검사 후 이동합니다.</p>
+                <Turnstile key={entryVersion} siteKey={configuration.turnstileSiteKey} action="access"
+                    onToken={value => void verifyEntry(value)} onError={setEntryError}/>
+                {entryError && <><p role="alert" className="form-error">{entryError}</p>
+                    <button className="secondary" onClick={() => {
+                        setEntryError(''); setEntryVersion(value => value+1);
+                    }}>다시 확인</button></>}
+                <small>루센트 현장 관리 · v{APP_VERSION}</small>
+                <AccessPrivacyNotice/>
+            </main>
+        </div>;
+    }
     if (user) {
         if (workspace === 'inspection' || settingsOpen)
             return <App key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}
@@ -138,6 +198,7 @@ export function LoginApplication() {
                     </fieldset>
                 </form>}
                 {!temporaryUser && <aside className="login-help"><strong>비밀번호를 잊으셨나요?</strong><span>관리자에게 임시 비밀번호를 요청해 주세요.</span></aside>}
+                {configuration?.turnstileSiteKey && <AccessPrivacyNotice/>}
                 {configuration?.setupRequired && !temporaryUser && <button className="text-button" onClick={() => { setSetup(value => !value); setError(''); }}>{setup ? '로그인으로 돌아가기' : '최초 어드민 계정 등록'}</button>}
                 {temporaryUser && <button className="text-button" onClick={() => void logout().catch(cause => setError(cause.message))}>다른 계정으로 로그인</button>}
             </>}
