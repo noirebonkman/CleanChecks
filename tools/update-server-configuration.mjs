@@ -10,6 +10,15 @@ if (!/^\.\.\/\.server-build\/v\d+(\.\d+)+$/.test(configuration.assets?.directory
     throw Error('사용자 지정 assets 경로는 자동 변경하지 않습니다. 배포 경로를 확인해 주세요.');
 }
 configuration.assets.directory = '../.server-build/v' + version;
+configuration.vars = { ...configuration.vars, REQUIRE_TURNSTILE:'true' };
+const protectionLimits = [
+    {name:'AUTH_REQUEST_LIMITER',namespace_id:'54681001',simple:{limit:60,period:60}},
+    {name:'API_REQUEST_LIMITER',namespace_id:'54681002',simple:{limit:1200,period:60}},
+];
+configuration.ratelimits = [
+    ...(configuration.ratelimits || []).filter(binding => !protectionLimits.some(limit=>limit.name === binding.name)),
+    ...protectionLimits,
+];
 configuration.triggers = { ...configuration.triggers, crons: [...new Set([...(configuration.triggers?.crons || []), '0 * * * *'])] };
 const eventBinding = { name:'CALENDAR_EVENTS', class_name:'CalendarEvents' };
 const eventMigration = { tag:'calendar-events-v1', new_sqlite_classes:['CalendarEvents'] };

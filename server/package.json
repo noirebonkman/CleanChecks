@@ -7,11 +7,17 @@
     "db:local": "wrangler d1 migrations apply cleanchecks --local --persist-to .wrangler/state-v092",
     "db:remote": "wrangler d1 migrations apply cleanchecks --remote",
     "deploy": "wrangler deploy",
-    "test": "node tests/integration.mjs && node tests/synchronization.mjs && node tests/account-access.mjs && node tests/login-protection.mjs && node tests/account-permissions.mjs",
+    "test": "node tests/integration.mjs && node tests/synchronization.mjs && node tests/account-access.mjs && node tests/login-protection.mjs && node tests/account-permissions.mjs && node tests/security-abuse.mjs",
     "deploy:check": "wrangler deploy --dry-run --outdir .test-work/deploy"
   },
   "devDependencies": {
-    "wrangler": "^4.0.0",
-    "miniflare": "^4.0.0"
+    "miniflare": "4.20260730.0",
+    "wrangler": "^4.0.0"
+  },
+  "overrides": {
+    "miniflare@4.20260730.0": {
+      "undici": "7.30.1",
+      "sharp": "0.35.5"
+    }
   }
 }

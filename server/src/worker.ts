@@ -2,6 +2,7 @@ import { APP_VERSION } from '../../src/version';
 import { canManageCalendar, permissionKeys, type PermissionOverrides } from '../../src/access-control';
 import { accountSelection, permissionColumns, permissionsFor, overridesFor, requirePermission } from './account-permissions';
 import { checkLoginBurst, verifyChallenge } from './login-protection';
+import { checkRequestRate } from './request-protection';
 import type { Environment, Account, PublicAccount } from './bindings';
 import { base64, fromBase64, cookie, sessionToken, digest, open, passwordHash, same, seal, verifyPassword } from './security';
 import { ApiError, id, jsonBody, readBody, record, revision, site, text } from './validation';
@@ -86,14 +87,15 @@ async function route(request: Request, env: Environment): Promise<Response> {
         if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))
             throw new ApiError(415, 'JSON 형식만 허용합니다.');
     }
+    await checkRequestRate(request, env, ['/api/access-check','/api/login','/api/setup'].includes(path));
     if (path === '/api/auth-config' && method === 'GET') {
         const installed = await env.DB.prepare('SELECT id FROM installation WHERE id=1').first();
         return send({ setupRequired: !installed, turnstileSiteKey: loopback ? '' : env.TURNSTILE_SITE_KEY || '', localDevelopment: loopback });
     }
     if (path === '/api/access-check' && method === 'POST') {
-        await checkLoginBurst(env);
-        const body = await jsonBody(request);
+        const body = await jsonBody(request, 16384);
         await verifyChallenge(request, body.challenge, env, 'access');
+        await checkLoginBurst(env);
         return send({ ok:true });
     }
     if (path === '/api/health' && method === 'GET') {
@@ -119,9 +121,9 @@ async function route(request: Request, env: Environment): Promise<Response> {
         return send({ ok: true, service: 'cleanchecks', version: APP_VERSION, photoStorage: 'd1' });
     }
     if (path === '/api/setup' && method === 'POST') {
-        await checkLoginBurst(env);
-        const body = await jsonBody(request);
+        const body = await jsonBody(request, 16384);
         await verifyChallenge(request, body.challenge, env);
+        await checkLoginBurst(env);
         if (!env.SETUP_TOKEN || env.SETUP_TOKEN.length < 32 || !same(String(body.setupToken || ''), env.SETUP_TOKEN))
             throw new ApiError(403, '서버 초기 설정 코드를 확인해 주세요.');
         const username = loginName(body.username), name = text(body.name, '이름', 100, true);
@@ -143,9 +145,9 @@ async function route(request: Request, env: Environment): Promise<Response> {
         return send({ ok: true }, 201);
     }
     if (path === '/api/login' && method === 'POST') {
-        await checkLoginBurst(env);
-        const body = await jsonBody(request);
+        const body = await jsonBody(request, 16384);
         await verifyChallenge(request, body.challenge, env);
+        await checkLoginBurst(env);
         const username = loginName(body.username), provided = text(body.password, '비밀번호', 128, true), clock = Date.now();
         await env.DB.prepare('DELETE FROM login_attempts WHERE expires_at<?').bind(clock).run();
         const attempts = await env.DB.prepare('INSERT INTO login_attempts(username,failures,expires_at) VALUES(?,1,?) ON CONFLICT(username) DO UPDATE SET failures=CASE WHEN expires_at<? THEN 1 ELSE failures+1 END,expires_at=CASE WHEN expires_at<? THEN excluded.expires_at ELSE expires_at END RETURNING failures,expires_at')
@@ -494,6 +496,11 @@ function secureResponse(response: Response, request: Request): Response {
     headers.set('Referrer-Policy', 'no-referrer');
     headers.set('X-Frame-Options', 'DENY');
     headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+    if (new URL(request.url).pathname.startsWith('/api/')) {
+        headers.set('Cache-Control', 'no-store');
+        headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
+    if (response.status === 429) headers.set('Retry-After', '60');
     if (new URL(request.url).protocol === 'https:')
         headers.set('Strict-Transport-Security', 'max-age=31536000');
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });

@@ -13,7 +13,7 @@ export async function verifyChallenge(request: Request, token: unknown, env: Env
     // Local previews listen on loopback only and must not use production challenge keys.
     if (['localhost','127.0.0.1','[::1]'].includes(new URL(request.url).hostname)) return;
     // No IP or device fingerprint is retained by the application.
-    if (!env.TURNSTILE_SITE_KEY && !env.TURNSTILE_SECRET_KEY) return;
+    if (!env.TURNSTILE_SITE_KEY && !env.TURNSTILE_SECRET_KEY && env.REQUIRE_TURNSTILE !== 'true') return;
     if (!env.TURNSTILE_SITE_KEY || !env.TURNSTILE_SECRET_KEY) {
         throw new ApiError(503, '로그인 봇 검사 설정이 완료되지 않았습니다. 관리자에게 문의해 주세요.');
     }
@@ -28,7 +28,10 @@ export async function verifyChallenge(request: Request, token: unknown, env: Env
             signal: AbortSignal.timeout(8000),
         });
     } catch { throw new ApiError(503, '로봇 방지 확인에 연결하지 못했습니다. 다시 시도해 주세요.'); }
-    const result = await response.json() as { success: boolean; hostname?: string; action?: string };
+    let result: { success: boolean; hostname?: string; action?: string };
+    try { result = await response.json() as typeof result; }
+    catch { throw new ApiError(503, '로봇 방지 확인에 연결하지 못했습니다. 다시 시도해 주세요.'); }
+    if (!result || typeof result !== 'object') throw new ApiError(503, '로봇 방지 확인을 다시 시도해 주세요.');
     if (!response.ok || !result.success || result.hostname !== new URL(request.url).hostname || result.action !== action) {
         throw new ApiError(403, '로봇 방지 확인이 만료되었습니다. 다시 시도해 주세요.');
     }

@@ -74,7 +74,34 @@ export function record(value: unknown) {
     result.history = Array.isArray(input.history) ? input.history.slice(-200).map((entry: Record<string, unknown>) => ({ at: text(entry.at, '수정일', 100) })) : [];
     return result;
 }
+async function discardOversizedBody(reader: ReadableStreamDefaultReader<Uint8Array>) {
+    // A small bounded drain allows the runtime to deliver the 413 response. Stop on
+    // either a byte budget or a deadline, even if the sender never ends the upload.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        await Promise.race([
+            (async () => {
+                let discarded = 0;
+                while (discarded < 262144) {
+                    const next = await reader.read();
+                    if (next.done) return;
+                    discarded += next.value.length;
+                }
+                void reader.cancel().catch(() => {});
+            })(),
+            new Promise<void>(resolve => { timer = setTimeout(() => {
+                void reader.cancel().catch(() => {}); resolve();
+            }, 1000); }),
+        ]);
+    } catch { /* Reject the upload without leaking transport details. */ }
+    finally { if (timer) clearTimeout(timer); }
+}
 export async function readBody(request: Request, max = 512000): Promise<Uint8Array> {
+    const declared = request.headers.get('Content-Length');
+    if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > max)) {
+        if (request.body) await discardOversizedBody(request.body.getReader());
+        throw new ApiError(413, '파일 또는 입력 내용이 너무 큽니다.');
+    }
     const reader = request.body?.getReader();
     if (!reader)
         return new Uint8Array();
@@ -86,8 +113,7 @@ export async function readBody(request: Request, max = 512000): Promise<Uint8Arr
             break;
         size += next.value.length;
         if (size > max) {
-            // Drain without retaining additional bytes so the HTTP response can finish cleanly.
-            while (!(await reader.read()).done) { }
+            await discardOversizedBody(reader);
             throw new ApiError(413, '파일 또는 입력 내용이 너무 큽니다.');
         }
         chunks.push(next.value);
@@ -100,9 +126,9 @@ export async function readBody(request: Request, max = 512000): Promise<Uint8Arr
     }
     return result;
 }
-export async function jsonBody(request: Request): Promise<Record<string, unknown>> {
+export async function jsonBody(request: Request, max = 512000): Promise<Record<string, unknown>> {
     try {
-        const value = JSON.parse(new TextDecoder().decode(await readBody(request)));
+        const value = JSON.parse(new TextDecoder().decode(await readBody(request, max)));
         if (!value || typeof value !== 'object' || Array.isArray(value))
             throw new Error();
         return value;

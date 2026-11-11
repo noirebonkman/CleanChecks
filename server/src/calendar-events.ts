@@ -9,6 +9,8 @@ type SocketState = {
     encryptedName: string;
     editingUntil: number;
     item?: string;
+    messageWindowAt?: number;
+    messageCount?: number;
 };
 
 type CalendarSocket = WebSocket & {
@@ -48,11 +50,15 @@ export class CalendarEvents {
         const expiresAt = Number(request.headers.get('X-Calendar-Session-Expires'));
         if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket' || !Number.isFinite(expiresAt) || expiresAt <= Date.now())
             return new Response('WebSocket upgrade required',{status:426});
+        const session = request.headers.get('X-Calendar-Session') || '';
+        const connections = this.context.getWebSockets().filter(socket=>socket.readyState === 1);
+        if (connections.length >= 128 || connections.filter(socket=>stateOf(socket)?.session === session).length >= 4)
+            return new Response('Too many realtime connections',{status:429,headers:{'Retry-After':'60'}});
         const {0:client,1:server} = new WebSocketPair();
         this.context.acceptWebSocket(server);
         server.serializeAttachment({
             expiresAt,
-            session:request.headers.get('X-Calendar-Session') || '',
+            session,
             actor:request.headers.get('X-Calendar-Editor') || '',
             encryptedName:request.headers.get('X-Calendar-Editor-Name') || '',
             editingUntil:0,
@@ -62,11 +68,21 @@ export class CalendarEvents {
     }
 
     async webSocketMessage(socket: CalendarSocket, message: string | ArrayBuffer) {
-        if (typeof message !== 'string') return;
+        if (typeof message !== 'string' || message.length > 512) {
+            socket.close(1009,'Message too large');
+            return;
+        }
+        const state = stateOf(socket), now = Date.now();
+        if (!state || state.expiresAt <= now) { socket.close(1008,'Session expired'); return; }
+        if (!state.messageWindowAt || now - state.messageWindowAt >= 10000) {
+            state.messageWindowAt = now; state.messageCount = 0;
+        }
+        state.messageCount = (state.messageCount || 0) + 1;
+        socket.serializeAttachment(state);
+        if (state.messageCount > 20) { socket.close(1008,'Too many messages'); return; }
         const stopping = message === 'viewing';
         const item = message.startsWith('editing:') ? message.slice(8) : '';
         if (!stopping && message !== 'editing' && !/^[\w-]{1,100}@(\d{4}-\d{2}-\d{2})?$/.test(item)) return;
-        const state = stateOf(socket), now = Date.now();
         if (!state?.actor || !state.session || state.expiresAt <= now) return;
         if (stopping ? !state.editingUntil : (state.item || '') === item && state.editingUntil > now + editorLease - 8_000) return;
         state.item = item;

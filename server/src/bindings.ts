@@ -21,6 +21,9 @@ export interface Database {
     }[]>;
 }
 export interface Environment {
+    AUTH_REQUEST_LIMITER?: { limit(options: {key:string}): Promise<{success:boolean}> };
+    API_REQUEST_LIMITER?: { limit(options: {key:string}): Promise<{success:boolean}> };
+    REQUIRE_TURNSTILE?: string;
     DB: Database;
     CALENDAR_EVENTS?: {
         idFromName(name: string): unknown;
