@@ -23,6 +23,8 @@ type CalendarDetail = {
 };
 type OwnerEvent<D> = { id: string; actorId: string; targetId: string; at: string; action: string; detail: D };
 type ManagementDetail = {
+    actorName?:string;
+    date?:string;
     reason?: string;
     name?: string;
     recordCount?: number;
@@ -72,7 +74,8 @@ function ManagementEntry({ event, users }: { event: OwnerEvent<ManagementDetail>
     const name = (id: string) => users.find(user => user.id === id)?.name || id;
     return <details className="activity-entry">
         <summary><span><strong>{historyLabel(event.action)}</strong> · {detail.name || name(event.targetId)}</span>
-            <small>{dateTime.format(new Date(event.at))} · {name(event.actorId)}</small></summary>
+            <small>{dateTime.format(new Date(event.at))} · {detail.actorName||name(event.actorId)}</small></summary>
+        {detail.date&&<p>점검일시 {detail.date.replace('T',' ').slice(0,16)}</p>}
         {detail.reason && <p>사유 {detail.reason}</p>}
         {detail.beforeRole && detail.afterRole && <p>등급 {roleName[detail.beforeRole]} → {roleName[detail.afterRole]} · 개인별 권한 초기화</p>}
         {before && after && <dl>{permissionKeys.map(key => <div key={key}><dt>{permissionLabels[key]}</dt><dd>{permission(before[key])} → {permission(after[key])}</dd></div>)}</dl>}

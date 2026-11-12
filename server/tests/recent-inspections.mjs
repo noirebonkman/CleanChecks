@@ -51,6 +51,15 @@ try{
  const second=(await call('recent-inspections?cursor='+encodeURIComponent(first.nextCursor),200,{cookie:users[1].cookie})).data;
  assert.equal(second.items.length,5);assert.equal(new Set([...first.items,...second.items].map(row=>row.id)).size,25);
  assert.equal((await call('recent-inspections?since='+encodeURIComponent(first.version),200,{cookie:users[1].cookie})).data.unchanged,true);
+ const scoped=(await call('recent-inspections?inspector='+users[0].data.user.id,200,{cookie:users[1].cookie})).data;
+ assert.equal(scoped.items.length,13);assert(scoped.items.every(row=>row.inspectorId===users[0].data.user.id));
+ assert.equal(scoped.inspectors.length,2);assert.equal(scoped.items[0].issueCount,1);
+ const dated=(await call('recent-inspections?from=2026-10-01&until=2026-10-31',200,{cookie:users[1].cookie})).data;
+ assert.equal(dated.items.length,1);assert.equal(dated.items[0].id,'recent-24');
+ const drafts=(await call('recent-inspections?status=draft',200,{cookie:users[1].cookie})).data;
+ assert.equal(drafts.items.length,1);assert.equal(drafts.items[0].id,'recent-23');
+ assert.equal((await call('recent-inspections?q='+encodeURIComponent('없는현장'),200,{cookie:users[1].cookie})).data.items.length,0);
+ await call('recent-inspections?from=2026-12-01&until=2026-01-01',400,{cookie:users[1].cookie});
  const viewed=(await call('recent-inspections/recent-24',200,{cookie:users[1].cookie})).data;
  assert.equal(viewed.record.issues,base.issues);assert.equal(viewed.inspectorName,'첫 점검자');
  assert.equal(viewed.record.photos[0].data,'');
