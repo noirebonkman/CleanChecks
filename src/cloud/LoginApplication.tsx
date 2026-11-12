@@ -29,6 +29,7 @@ export function LoginApplication() {
     const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
     const [setup, setSetup] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
     const [token, setToken] = useState(''), [challengeVersion, setChallengeVersion] = useState(0);
+    const [challengeError, setChallengeError] = useState('');
     const [entryVerified, setEntryVerified] = useState(false);
     const [entryError, setEntryError] = useState('');
     const [entryVersion, setEntryVersion] = useState(0);
@@ -37,7 +38,14 @@ export function LoginApplication() {
     const userRef = useRef<ServerUser | null>(null), changing = useRef(false);
     userRef.current = user;
 
-    const clear = () => { setUser(null); setWorkspace('menu'); setSettingsOpen(false); setTemporaryUser(null); setError(''); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
+    const resetChallenge = () => { setToken(''); setChallengeError(''); setChallengeVersion(value => value + 1); };
+    const receiveChallenge = (value: string) => {
+        setToken(value);
+        if (value) setChallengeError('');
+    };
+    const failChallenge = (message: string) => { setToken(''); setChallengeError(message); };
+    const challengeBlocked = !temporaryUser && !!configuration?.turnstileSiteKey && (!token || !!challengeError);
+    const clear = () => { setUser(null); setWorkspace('menu'); setSettingsOpen(false); setTemporaryUser(null); setError(''); resetChallenge(); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
     const enter = async (next: ServerUser, expiry?: number) => {
         expiresAt.current = typeof expiry === 'number' ? expiry : null;
         if (next.mustChangePassword) { setTemporaryUser(next); return; }
@@ -93,7 +101,14 @@ export function LoginApplication() {
     }, []);
     const logout = async () => { await post('logout', {}); clear(); };
     const submit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault(); if (busy) return;
+        event.preventDefault(); if (busy || loading) return;
+        // Disabled buttons do not guard Enter/programmatic form submission.
+        // The server still verifies every token independently before login/setup.
+        if (!configuration) { setError('서버 연결을 먼저 확인해 주세요.'); return; }
+        if (challengeBlocked) {
+            if (!challengeError) failChallenge('접속 확인을 완료한 뒤 로그인해 주세요.');
+            return;
+        }
         const fields = new FormData(event.currentTarget);
         setBusy(true); setError(''); setMessage('');
         try {
@@ -111,7 +126,11 @@ export function LoginApplication() {
                 const result = await post<{ user: ServerUser; expiresAt?: number }>('login', { username: fields.get('username'), password: fields.get('password'), remember: fields.get('remember') === 'on', challenge: token });
                 await enter(result.user, result.expiresAt);
             }
-        } catch (cause) { setError(cause instanceof Error ? cause.message : '로그인하지 못했습니다.'); }
+        } catch (cause) {
+            const message = cause instanceof Error ? cause.message : '로그인하지 못했습니다.';
+            if (!temporaryUser && /로봇|봇 검사|접속 확인/.test(message)) failChallenge(message);
+            else setError(message);
+        }
         finally { changing.current = false; setBusy(false); setToken(''); setChallengeVersion(value => value + 1); }
     };
     if (configuration?.turnstileSiteKey && !entryVerified) {
@@ -163,10 +182,11 @@ export function LoginApplication() {
             <p>{temporaryUser ? '임시 비밀번호를 본인 비밀번호로 변경해야 사용할 수 있습니다.' : setup ? '최초 한 번만 등록합니다. 서버를 새로 만드는 과정이 아닙니다.' : '내 계정으로 점검 기록을 이어가세요.'}</p>
             <>
                 {error && <p role="alert" className="form-error">{error}</p>}
+                {challengeError && <p role="alert" className="form-error">{challengeError}</p>}
                 {message && <p role="status">{message}</p>}
-                {error && !token && configuration?.turnstileSiteKey && !loading &&
+                {challengeError && configuration?.turnstileSiteKey && !loading &&
                     <button type="button" className="text-button" disabled={busy} onClick={() => {
-                        setError(''); setChallengeVersion(value=>value+1);
+                        resetChallenge();
                     }}>접속 다시 확인</button>}
                 {!configuration && !loading ? <button className="primary full" onClick={() => void restore()}>연결 다시 확인</button> :
                 <form key={temporaryUser ? 'password' : setup ? 'setup' : 'login'} onSubmit={submit}>
@@ -185,13 +205,13 @@ export function LoginApplication() {
                             <label>비밀번호<input placeholder="비밀번호 입력" name="password" type="password" autoComplete="current-password" required maxLength={128}/></label>
                             <label className="remember-option"><input type="checkbox" name="remember"/>자동로그인 <small>30일간 로그인 유지</small></label>
                         </>}
-                        {!temporaryUser && !loading && configuration?.turnstileSiteKey && <Turnstile key={challengeVersion} siteKey={configuration.turnstileSiteKey} onToken={setToken} onError={setError}/>}
-                        <button className="primary full" disabled={busy || loading || (!temporaryUser && !!configuration?.turnstileSiteKey && !token)}>{busy ? '처리 중…' : loading || (!temporaryUser && !!configuration?.turnstileSiteKey && !token) ? '접속 확인 중…' : temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 생성' : '로그인'}</button>
+                        {!temporaryUser && !loading && configuration?.turnstileSiteKey && <Turnstile key={challengeVersion} siteKey={configuration.turnstileSiteKey} onToken={receiveChallenge} onError={failChallenge}/>}
+                        <button className="primary full" disabled={busy || loading || challengeBlocked}>{busy ? '처리 중…' : challengeBlocked && challengeError ? '접속 확인 필요' : loading || challengeBlocked ? '접속 확인 중…' : temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 생성' : '로그인'}</button>
                     </fieldset>
                 </form>}
-                {!temporaryUser && <aside className="login-help"><strong>비밀번호를 잊으셨나요?</strong><span>관리자에게 임시 비밀번호를 요청해 주세요.</span></aside>}
+                {!temporaryUser && <aside className="login-help"><strong>비밀번호를 잊으셨나요?</strong><span>어드민에게 비밀번호 초기화를 요청해 주세요.</span></aside>}
                 {configuration?.turnstileSiteKey && <AccessPrivacyNotice/>}
-                {configuration?.setupRequired && !temporaryUser && <button className="text-button" onClick={() => { setSetup(value => !value); setError(''); }}>{setup ? '로그인으로 돌아가기' : '최초 어드민 계정 등록'}</button>}
+                {configuration?.setupRequired && !temporaryUser && <button className="text-button" disabled={busy || loading} onClick={() => { setSetup(value => !value); setError(''); resetChallenge(); }}>{setup ? '로그인으로 돌아가기' : '최초 어드민 계정 등록'}</button>}
                 {temporaryUser && <button className="text-button" onClick={() => void logout().catch(cause => setError(cause.message))}>다른 계정으로 로그인</button>}
             </>
             </div>

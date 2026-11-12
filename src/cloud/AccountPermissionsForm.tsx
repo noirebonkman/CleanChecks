@@ -26,7 +26,7 @@ export function AccountPermissionsForm({ person, disabled, onSave }: Props) {
                     <option value="deny">이 사용자 차단</option>
                 </select>
             </label>)}
-            <p className="hint">위임한 계정 관리 권한은 일반 계정의 추가·사용 중지·임시 비밀번호 발급에 적용됩니다. 다른 사람의 기록은 조회만 가능합니다. 기록 삭제·관리자 승격·상세 관리 로그는 어드민 전용입니다. 저장하면 해당 사용자의 기존 로그인이 해제됩니다.</p>
+            <p className="hint">위임한 계정 관리 권한은 일반 계정 추가와 계정 목록 조회에 적용됩니다. 비밀번호 초기화·사용 중지·재개·등급 및 개인별 권한 변경·기록 삭제·복원·상세 로그는 어드민 전용입니다. 저장하면 해당 사용자의 기존 로그인이 해제됩니다.</p>
             <button type="button" onClick={() => setValues(Object.fromEntries(permissionKeys.map(key => [key, null])) as PermissionOverrides)}>등급 기본값으로 되돌리기</button>
             <button className="primary" type="submit">개인별 권한 저장</button>
         </fieldset>

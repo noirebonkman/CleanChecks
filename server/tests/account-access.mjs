@@ -41,6 +41,12 @@ try{
  console.log('PASS: session cookies without remember; temporary passwords block all work until changed and revoke old sessions');
  const worker=await call('login',200,{method:'POST',body:{username:'worker',password:chosen}});
  const manager=await call('login',200,{method:'POST',body:{username:'manager',password:chosen}});
+ const beforeProtectedChange=await db.prepare('SELECT password_hash,active FROM accounts WHERE id=?').bind(worker.data.user.id).first();
+ for(const patch of [{password:temporary},{active:false},{active:true}])
+  await call('accounts/'+worker.data.user.id,403,{method:'PATCH',cookie:manager.cookie,body:patch});
+ assert.deepEqual(await db.prepare('SELECT password_hash,active FROM accounts WHERE id=?').bind(worker.data.user.id).first(),beforeProtectedChange);
+ await call('session',200,{cookie:worker.cookie});
+ console.log('PASS: managers cannot reset passwords or disable/enable accounts; rejected requests leave credentials and sessions unchanged');
  await call('people',403,{cookie:worker.cookie});await call('accounts',403,{cookie:worker.cookie});
  assert.equal((await call('people',200,{cookie:manager.cookie})).data.users.length,3);
  await call('accounts/'+manager.data.user.id,403,{method:'PATCH',cookie:worker.cookie,body:{role:'admin'}});

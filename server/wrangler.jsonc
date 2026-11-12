@@ -4,7 +4,7 @@
   "compatibility_date": "2026-08-01",
   "workers_dev": true,
   "assets": {
-    "directory": "../.server-build/v0.992",
+    "directory": "../.server-build/v0.99919",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": [
@@ -19,7 +19,9 @@
       "migrations_dir": "migrations"
     }
   ],
-  "vars": {},
+  "vars": {
+    "REQUIRE_TURNSTILE": "true"
+  },
   "observability": {
     "enabled": false
   },
@@ -35,5 +37,39 @@
     "crons": [
       "0 * * * *"
     ]
-  }
+  },
+  "ratelimits": [
+    {
+      "name": "AUTH_REQUEST_LIMITER",
+      "namespace_id": "54681001",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "API_REQUEST_LIMITER",
+      "namespace_id": "54681002",
+      "simple": {
+        "limit": 1200,
+        "period": 60
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CALENDAR_EVENTS",
+        "class_name": "CalendarEvents"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "calendar-events-v1",
+      "new_sqlite_classes": [
+        "CalendarEvents"
+      ]
+    }
+  ]
 }

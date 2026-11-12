@@ -31,12 +31,12 @@ export function UserManagement({ user }: { user:ServerUser }) {
     useEffect(() => { if (success) result.current?.focus(); }, [success]);
     useEffect(() => { if (selected) detail.current?.focus(); }, [selected]);
     const person = users.find(person => person.id === selected);
-    const manageable = !!person && person.id !== user.id && person.role !== 'owner' && (isOwner || person.role === 'inspector');
+    const manageable = isOwner && !!person && person.id !== user.id && person.role !== 'owner';
     const filtered = users.filter(person => (!role || person.role === role)
         && (person.name + ' ' + person.username).toLowerCase().includes(query.trim().toLowerCase()));
     function confirm(next:Action) { setDialogError(''); setSuccess(''); setAction(next); }
     const actionLabel = action?.kind === 'status'
-        ? action.person.active ? '사용 중지' : '사용 재개' : action?.kind === 'password' ? '임시 비밀번호 재발급' : '개인별 권한 저장';
+        ? action.person.active ? '사용 중지' : '사용 재개' : action?.kind === 'password' ? '비밀번호 초기화' : '개인별 권한 저장';
 
     async function saveAccount(person:ServerUser, patch:Record<string,unknown>, permissions = false) {
         const path = 'accounts/' + person.id + (permissions ? '/permissions' : '');
@@ -108,6 +108,7 @@ export function UserManagement({ user }: { user:ServerUser }) {
             </select></label>
         </div>
         {isOwner && <p className="hint">등급을 선택하면 바로 저장되며, 개인별 권한은 새 등급의 기본값으로 바뀝니다.</p>}
+        {!isOwner && <p className="hint">계정 추가와 목록 조회가 가능합니다. 비밀번호 초기화·사용 중지·재개·등급 및 개인별 권한 변경은 어드민이 처리합니다.</p>}
         <div className="user-grid" role="table" aria-label="사용자 목록">
             <div className="user-grid-row user-grid-header" role="row">{['이름','아이디','등급','상태','상세'].map(label => <span key={label} role="columnheader">{label}</span>)}</div>
             {filtered.map(person => <div className="user-grid-row" role="row" key={person.id} data-selected={selected === person.id}>
@@ -140,7 +141,7 @@ export function UserManagement({ user }: { user:ServerUser }) {
                 {tab === 'permissions' && (isOwner ? <AccountPermissionsForm key={person.id + ':' + person.permissionRevision + ':' + person.role}
                     person={person} disabled={busy} onSave={async permissions => confirm({kind:'permissions',person,permissions})}/>
                     : <p>개인별 권한은 어드민이 설정합니다.</p>)}
-                {tab === 'password' && <button className="secondary" onClick={() => confirm({kind:'password',person})}>임시 비밀번호 재발급</button>}
+                {tab === 'password' && <button className="secondary" onClick={() => confirm({kind:'password',person})}>비밀번호 초기화</button>}
                 {tab === 'status' && <div className="user-action-row">
                     <button className={person.active ? 'secondary danger' : 'secondary'} onClick={() => confirm({kind:'status',person})}>{person.active ? '사용 중지' : '사용 재개'}</button>
                 </div>}
