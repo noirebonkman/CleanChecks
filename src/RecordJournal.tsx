@@ -40,12 +40,12 @@ export function RecordJournal({canCreate=true,editableStaffId,records,name,query
   if(matchMedia('(max-width: 1100px)').matches)onOpen(record);
  };
  const heading=<header className="journal-heading">
-     <div><p className="eyebrow">현장점검</p><h1>점검 기록</h1><p className="journal-intro">{recent?'전체 점검 현황과 내 기록을 확인하세요.':name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p></div>
+     <div><p className="eyebrow">현장점검</p><h1>점검 기록</h1><p className="journal-intro">{recent?(name?`${name}님의 기록과 전체 최근 점검을 확인하세요.`:'전체 최근 점검을 확인하세요.'):name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p></div>
      {canCreate&&<button className="primary" onClick={onNew}><Plus size={20}/>새 점검</button>}
     </header>;
  return <div className="content journal-home page-enter">
   {recent&&<>{heading}{recent}</>}
-  <div className="journal-layout">
+  {(!recent||!!name.trim())&&<div className="journal-layout">
    <section className="journal-list" data-selecting={selectionMode} aria-label="점검 기록 목록">
     {recent?<h2 className="journal-own-heading">{name?name+'님의 점검 기록':'점검 기록'}</h2>:heading}
     <div className="journal-tools"><label className="search journal-search"><Search size={20} aria-hidden="true"/><input aria-label="현장 이름 검색" placeholder="현장명·구역·주소로 찾기" value={query} onChange={e=>onQuery(e.target.value)}/></label>
@@ -79,6 +79,6 @@ export function RecordJournal({canCreate=true,editableStaffId,records,name,query
      <div className="journal-actions"><button className="primary" onClick={()=>onOpen(selected)}>{canResume(selected)?(selected.pendingCompletion?'전송 이어서 하기':'이어서 점검하기'):'점검표 열기'}<ArrowRight size={18}/></button>{selected.status==='complete'&&<button className="secondary" onClick={()=>onExport(selected)}><Download size={18}/>내보내기</button>}</div>
     </div>:<div className="journal-detail-empty"><ClipboardCheck size={38}/><h2>점검 기록을 한눈에</h2><p>왼쪽에서 기록을 선택하면 현장 정보와<br/>구역별 점검 결과를 확인할 수 있습니다.</p></div>}
    </section>
-  </div>
+  </div>}
  </div>;
 }

@@ -52,4 +52,18 @@ try{
  fireEvent.click(screen.getByRole('button',{name:'선택 삭제',exact:true}));
  assert.deepEqual(chosen.map(row=>row.id).sort(),['one','two']);
  console.log('PASS: list bulk selection includes only deletable displayed records, leaving foreign records unselected');
+ cleanup();
+ const journalProps={records:[record],name:'',query:'',filter:'전체',canCreate:false,editableStaffId:'me',onQuery:()=>{},onFilter:()=>{},onNew:()=>{},onOpen:()=>{},onExport:()=>{},emptyAction:null,recent:React.createElement('section',{'aria-label':'전체 최근 점검'},'전체 최근 기록')};
+ const noSelection=render(React.createElement(RecordJournal,journalProps));
+ assert(screen.getByRole('region',{name:'전체 최근 점검'}));
+ assert(!screen.queryByRole('region',{name:'점검 기록 목록'}));
+ assert(!screen.queryByRole('region',{name:'선택한 점검 요약'}));
+ assert(!screen.queryByLabelText('현장 이름 검색'));
+ assert(!screen.queryByText('점검자를 선택해 주세요'));
+ noSelection.rerender(React.createElement(RecordJournal,{...journalProps,name:'본인'}));
+ assert(screen.getByRole('region',{name:'점검 기록 목록'}));
+ assert(screen.getByRole('heading',{name:'본인님의 점검 기록'}));
+ assert(screen.getByRole('region',{name:'전체 최근 점검'}));
+ assert.equal(journalProps.records.length,1);
+ console.log('PASS: no selected inspector hides the entire personal list, search, filters and detail while shared recent records remain; selecting restores the same records');
 }finally{cleanup();dom.window.close();}
