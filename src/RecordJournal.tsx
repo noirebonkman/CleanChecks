@@ -7,7 +7,7 @@ type Props={
  records:Inspection[];name:string;query:string;filter:string;canCreate?:boolean;editableStaffId?:string;
  onQuery:(value:string)=>void;onFilter:(value:string)=>void;
  onNew:()=>void;onOpen:(record:Inspection)=>void;onExport:(record:Inspection)=>void;
- emptyAction:React.ReactNode;
+ emptyAction:React.ReactNode;recent?:React.ReactNode;
 };
 const formatDate=(date:string)=>date.slice(0,10).replaceAll('-','.');
 const checked=(record:Inspection)=>sections.reduce((sum,section,si)=>sum+section.items.filter((_,i)=>grades.includes(record.answers[`${si}-${i}`])).length,0);
@@ -17,7 +17,7 @@ function draftStepLabel(record:Inspection){
  return index>=0?`이어갈 곳 · ${sections[index].title}`:record.rating?'완료 확인 대기':'이어갈 곳 · 종합평가';
 }
 
-export function RecordJournal({canCreate=true,editableStaffId,records,name,query,filter,onQuery,onFilter,onNew,onOpen,onExport,emptyAction}:Props){
+export function RecordJournal({canCreate=true,editableStaffId,records,name,query,filter,onQuery,onFilter,onNew,onOpen,onExport,emptyAction,recent}:Props){
  const [selectedId,setSelectedId]=useState('');
  const [from,setFrom]=useState(''),[until,setUntil]=useState('');
  const invalidRange=!!from&&!!until&&from>until;
@@ -33,13 +33,15 @@ export function RecordJournal({canCreate=true,editableStaffId,records,name,query
   setSelectedId(record.id);
   if(matchMedia('(max-width: 1100px)').matches)onOpen(record);
  };
+ const heading=<header className="journal-heading">
+     <div><p className="eyebrow">현장점검</p><h1>점검 기록</h1><p className="journal-intro">{recent?'전체 점검 현황과 내 기록을 확인하세요.':name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p></div>
+     {canCreate&&<button className="primary" onClick={onNew}><Plus size={20}/>새 점검</button>}
+    </header>;
  return <div className="content journal-home page-enter">
+  {recent&&<>{heading}{recent}</>}
   <div className="journal-layout">
    <section className="journal-list" aria-label="점검 기록 목록">
-    <header className="journal-heading">
-     <div><p className="eyebrow">현장점검</p><h1>점검 기록</h1><p className="journal-intro">{name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p></div>
-     {canCreate&&<button className="primary" onClick={onNew}><Plus size={20}/>새 점검</button>}
-    </header>
+    {recent?<h2 className="journal-own-heading">내 점검 기록</h2>:heading}
     <div className="journal-tools"><label className="search journal-search"><Search size={20} aria-hidden="true"/><input aria-label="현장 이름 검색" placeholder="현장명·구역·주소로 찾기" value={query} onChange={e=>onQuery(e.target.value)}/></label>
     <details className="journal-period"><summary><CalendarDays size={17} aria-hidden="true"/>기간 선택{(from||until)&&<span>적용 중</span>}</summary><div className="journal-date-fields"><label>시작일<input type="date" value={from} aria-invalid={invalidRange} aria-describedby={invalidRange?'journal-period-error':undefined} onChange={e=>setFrom(e.target.value)}/></label><label>종료일<input type="date" value={until} aria-invalid={invalidRange} aria-describedby={invalidRange?'journal-period-error':undefined} onChange={e=>setUntil(e.target.value)}/></label></div>{invalidRange&&<p id="journal-period-error" role="alert" className="form-error">종료일을 시작일과 같거나 이후로 선택해 주세요.</p>}{(from||until)&&<button className="text-button" onClick={()=>{setFrom('');setUntil('')}}>기간 해제</button>}</details>
     </div><div className="journal-filters" role="group" aria-label="점검 상태 필터">{(['전체','작성 중','완료'] as const).map(value=><button key={value} aria-pressed={filter===value} onClick={()=>onFilter(value)}>{value}<span>{counts[value]}</span></button>)}</div>

@@ -8,7 +8,8 @@ import { base64, fromBase64, cookie, sessionToken, digest, open, passwordHash, s
 import { ApiError, id, jsonBody, readBody, record, revision, site, text } from './validation';
 import { cleanExpiredPhotos, inspectionPhoto, photoBytes, photoStorageBudget, trashDurationMs } from './inspection-photos';
 import { calendarRoute } from './calendar';
-import { calendarEventHub, publishCalendarChange } from './calendar-events';
+import { calendarEventHub, publishCalendarChange, publishInspectionChange } from './calendar-events';
+import { recentInspections } from './recent-inspections';
 export { CalendarEvents } from './calendar-events';
 const sessionSeconds = 12 * 60 * 60;
 const rememberedSeconds = 30 * 24 * 60 * 60;
@@ -301,6 +302,10 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const rows = await env.DB.prepare('SELECT action,target_id,at FROM audit WHERE actor_id=? ORDER BY at DESC LIMIT 200').bind(account.id).all();
         return send({ events: rows.results });
     }
+    if (path === '/api/recent-inspections' || path.startsWith('/api/recent-inspections/')) {
+        const result = await recentInspections(request,env);
+        return result instanceof Response ? result : send(result);
+    }
     if (path === '/api/calendar/events' && method === 'GET') {
         if (request.headers.get('Origin') !== url.origin) throw new ApiError(403,'같은 사이트에서 연결해 주세요.');
         const hub = calendarEventHub(env);
@@ -398,6 +403,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         ]);
         if (result[method === 'DELETE' ? 1 : 0].meta.changes !== 1)
             throw new ApiError(409, '다른 기기에서 변경되었거나 접근할 수 없는 점검표입니다.');
+        await publishInspectionChange(env);
         return send({ revision: expected + 1, updated: at });
     }
     if (path === '/api/photos' || path.startsWith('/api/photos/'))
@@ -432,6 +438,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         ]);
         if (results[1].meta.changes !== 1)
             throw new ApiError(409, '기록이 변경되었거나 이미 삭제되었습니다. 다시 불러와 주세요.');
+        await publishInspectionChange(env);
         return send({ revision: expected + 1 });
     }
     const ownerAccount = /^\/api\/owner\/accounts\/([a-zA-Z0-9_-]+)$/.exec(path);
@@ -455,6 +462,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
             env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) VALUES(?,?,?,?,?,?)').bind(crypto.randomUUID(), account.id, target, 'account-deleted', await seal({ reason, name: await open(person.display_name, env), recordCount: count?.total || 0 }, env), at),
             audit(env, account.id, 'owner-deleted-account', target),
         ]);
+        await publishInspectionChange(env);
         return send({ ok: true, deletedRecords: count?.total || 0 });
     }
     if (path === '/api/owner/trash' && method === 'GET') {
@@ -474,6 +482,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
             env.DB.prepare('INSERT INTO audit SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM inspections WHERE id=? AND operation_id=?)').bind(crypto.randomUUID(),account.id,'inspection-restored',target,at,target,operation)
         ]);
         if(result[0].meta.changes!==1)throw new ApiError(409,'복원 기한·기록 버전·작성자 계정을 확인해 주세요.');
+        await publishInspectionChange(env);
         return send({ok:true});
     }
     if (path === '/api/owner/history' && method === 'GET') {

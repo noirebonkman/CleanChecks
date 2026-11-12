@@ -6,7 +6,7 @@ type EditorLease = {name:string;remaining:number;items?:ItemLease[]};
 type ActiveEditor = {name:string;items:string[]};
 
 // null is viewing, an empty string is creating a new schedule.
-export function useCalendarLive(onChange: () => void, editingItem: string | null) {
+export function useCalendarLive(onChange: () => void, editingItem: string | null, notification = 'calendar-changed', enabled = true) {
     const handler = useRef(onChange);
     handler.current = onChange;
     const connected = useRef(false);
@@ -20,7 +20,7 @@ export function useCalendarLive(onChange: () => void, editingItem: string | null
     },[editingItem]);
 
     useEffect(() => {
-        if (typeof WebSocket === 'undefined') return;
+        if (typeof WebSocket === 'undefined' || !enabled) return;
         let socket: WebSocket | undefined;
         let timer: number | undefined;
         let expiryTimer: number | undefined;
@@ -74,7 +74,7 @@ export function useCalendarLive(onChange: () => void, editingItem: string | null
                 sendEditing();
             };
             socket.onmessage = event => {
-                if (event.data === 'calendar-changed') handler.current();
+                if (event.data === notification) handler.current();
                 else if (typeof event.data === 'string') receiveEditors(event.data);
             };
             socket.onclose = () => {
@@ -139,7 +139,7 @@ export function useCalendarLive(onChange: () => void, editingItem: string | null
                 socket.close();
             }
         };
-    },[]);
+    },[notification,enabled]);
 
     return {connected,editors};
 }

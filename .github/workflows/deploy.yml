@@ -40,6 +40,7 @@ jobs:
           npm run server:install
       - name: Account UI and deployment tests
         run: |
+          node tests/recent-inspections.mjs
           node tests/background-connections.mjs
           node --max-old-space-size=384 tests/access-ui.mjs
           node tests/deployment-assets.mjs
