@@ -1,0 +1,60 @@
+/* Keep record controls in the record list; no dependence on the recent-feed layout. */
+.app .journal-list { min-width: 0; }
+.app .journal-list .journal-own-heading { margin-bottom: 12px; font-size: 1rem; line-height: 1.5; overflow-wrap: anywhere; }
+.app .journal-list .journal-tools { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: 8px; margin: 0 0 10px; }
+.app .journal-list .journal-tools:has(.journal-period[open]) { grid-template-columns: minmax(0,1fr); }
+.app .journal-list .journal-search { width: 100%; min-width: 0; min-height: 44px; padding-inline: 12px; border-color: var(--line); background: var(--bg); }
+.app .journal-list .journal-search input { min-width: 0; padding-block: 10px; }
+.app .journal-list .journal-period { min-width: 0; max-width: 100%; padding-inline: 8px; margin: 0; }
+.app .journal-list .journal-period summary { flex-wrap: wrap; min-height: 44px; padding: 8px 4px; }
+.app .journal-list .journal-period[open] { width: 100%; grid-column: 1 / -1; }
+.app .journal-list .journal-date-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.app .journal-list .journal-date-fields input { min-width: 0; width: 100%; }
+.app .journal-list .journal-filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; padding: 0; margin: 0; overflow: hidden; }
+.app .journal-list .journal-filters button { min-width: 0; min-height: 44px; padding: 8px 4px; font-size: .8rem; }
+.app .journal-list .journal-list-controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; min-height: 44px; padding-block: 5px; font-size: .78rem; }
+.app .journal-list .journal-list-controls > p { font-size: .75rem; }
+.app .journal-list .journal-list-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.app .journal-list .journal-list-controls button { min-height: 44px; padding: 8px 10px; font-size: .78rem; }
+.app .journal-list .journal-start-selection { color: var(--accent); }
+.app .journal-list .journal-list-controls[data-selecting=true] { justify-content: flex-start; background: var(--soft); border-radius: 9px; padding: 6px 8px; margin-top: 8px; }
+.app .journal-list .journal-select-all { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; cursor: pointer; }
+.app .journal-list .journal-selection-count { margin-right: auto; color: var(--muted); }
+.app .journal-list input[type=checkbox] { width: 20px; height: 20px; min-height: 0; margin: 0; accent-color: var(--accent); flex: none; }
+.app .journal-list .journal-day { margin-top: 10px; }
+.app .journal-list .journal-day-heading { margin: 0; padding: 8px 2px; min-height: 30px; }
+.app .journal-list .journal-selectable-entry { display: flex; align-items: stretch; gap: 0; min-width: 0; border-bottom: 1px solid var(--line); }
+.app .journal-list .journal-record { display: grid; grid-template-columns: 3.1rem minmax(0,1fr) 16px; justify-content: normal; align-items: center; gap: 10px; flex: 1 1 0; min-width: 0; width: auto; min-height: 80px; padding: 12px 10px; margin: 0; border: 1px solid transparent; border-radius: 8px; text-align: left; }
+.app .journal-list .journal-record.is-selected { border-color: transparent; box-shadow: inset 2px 0 var(--accent); }
+.app .journal-list .journal-time { width: auto; margin: 0; padding: 2px 0 0; align-self: start; white-space: nowrap; font-size: .73rem; }
+.app .journal-list .journal-record-copy { display: block; min-width: 0; text-align: left; }
+.app .journal-list .journal-record-copy > strong { font-size: .93rem; line-height: 1.55; }
+.app .journal-list .journal-record-meta { margin-top: 4px; gap: 5px 8px; font-size: .72rem; }
+.app .journal-list .journal-zone { margin-top: 4px; font-size: .72rem; }
+.app .journal-list .journal-record > svg { margin: 0; justify-self: end; }
+.app .journal-list .journal-delete-button { flex: 0 0 44px; width: 44px; min-width: 44px; align-self: center; min-height: 44px; padding: 10px; border-radius: 8px; color: var(--muted); background: transparent; }
+.app .journal-list .journal-delete-button:hover { color: var(--warning); background: var(--soft); }
+.app .journal-list .recent-select { width: 40px; min-width: 40px; align-self: stretch; }
+.app .journal-list .journal-local { margin-top: 14px; }
+@media(max-width:760px) {
+    .app .content.journal-home { padding: 16px 12px 28px; }
+    .app .journal-list { padding: 12px; border-radius: 12px; }
+    .app .journal-list .journal-record { grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 10px 8px; min-height: 84px; }
+    .app .journal-list .journal-record-copy { grid-column: 1; grid-row: 1; }
+    .app .journal-list .journal-time { grid-column: 2; grid-row: 1; font-size: .68rem; }
+    .app .journal-list .journal-record > svg { display: none; }
+    .app .journal-list .journal-record-copy > strong { font-size: .9rem; }
+    .app .journal-list .journal-list-controls[data-selecting=true] { gap: 2px 8px; }
+}
+@media(max-width:420px) {
+    .app .journal-list .journal-date-fields { grid-template-columns: 1fr; }
+    .app .journal-list .journal-period summary { font-size: .7rem; }
+    .app .journal-list .journal-list-controls[data-selecting=true] { display: grid; grid-template-columns: minmax(0,1fr) auto; }
+    .app .journal-list .journal-selection-count { justify-self: end; margin: 0; }
+    .app .journal-list .journal-list-controls[data-selecting=true] > button { width: 100%; }
+}
+.app .journal-list .recent-select { display: flex; align-items: center; justify-content: center; min-height: 44px; cursor: pointer; }
+.app .journal-list input[type=checkbox]:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.app .journal-list[data-selecting=true] .journal-record.is-selected { background: transparent; box-shadow: none; }
+.app .journal-list .journal-selectable-entry:has(input:checked) { background: var(--soft); border-radius: 8px; }
+@media(max-width:760px) { .app .journal-list .journal-record.is-selected { background: transparent; box-shadow: none; } }

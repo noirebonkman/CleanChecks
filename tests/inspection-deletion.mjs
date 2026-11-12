@@ -41,6 +41,11 @@ try{
  console.log('PASS: own deletion, foreign denial, owner password, server-confirmed local removal, failed deletion preservation and lost-response/local-save retry recovery');
  let chosen=[];
  render(React.createElement(RecordJournal,{records:[record,{...record,id:'two'},{...record,id:'foreign',staffId:'other'}],name:'본인',query:'',filter:'전체',canCreate:true,editableStaffId:'me',onQuery:()=>{},onFilter:()=>{},onNew:()=>{},onOpen:()=>{},onExport:()=>{},emptyAction:null,canDelete:row=>row.staffId==='me',onDeleteMany:rows=>chosen=rows}));
+ const recordList=screen.getByRole('region',{name:'점검 기록 목록'});
+ const directDelete=[...recordList.querySelectorAll('button')].filter(button=>button.getAttribute('aria-label')===site.name+' 점검표 삭제');
+ assert.equal(directDelete.length,2,'Each owned row has a visible delete button; foreign rows do not');
+ fireEvent.click(directDelete[0]);assert.deepEqual(chosen.map(row=>row.id),['one']);
+ assert(!screen.getByRole('region',{name:'선택한 점검 요약'}).querySelector('.danger'),'Deletion belongs in the list, not the detail preview');
  fireEvent.click(screen.getByRole('button',{name:'선택 삭제',exact:true}));
  const boxes=screen.getAllByRole('checkbox');assert.equal(boxes.length,3,'One select-all and two owned records; no foreign selection');
  fireEvent.click(screen.getByRole('checkbox',{name:'표시된 삭제 가능 기록 전체 선택'}));

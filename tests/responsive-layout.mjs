@@ -36,3 +36,17 @@ try {
     assert(entry.includes("import './responsive-layout.css'"));
     console.log('PASS: complete CSS cascade keeps settings top-aligned, login centered, account forms vertical, inputs styled and checkboxes bounded');
 } finally { dom.window.close(); }
+
+// Reproduce the real import order: component styles first, then global themes.
+const recordCss = ['src/record-list-controls.css', ...files, 'src/inspection-studio.css', 'src/workspace-surfaces.css', 'src/cloud/recent-inspections.css'].map(file => readFileSync(file,'utf8')).join('\n');
+const recordDom = new JSDOM('<!doctype html><html><head><style>'+recordCss+'</style></head><body><div class="app"><section class="journal-list"><div class="journal-tools"><label class="journal-search"><input></label></div><div class="journal-selectable-entry"><label class="recent-select"><input type="checkbox"></label><button class="journal-record"><time class="journal-time">22:15</time><span class="journal-record-copy">현장 이름</span></button><button class="journal-delete-button">삭제</button></div></section></div></body></html>',{virtualConsole:new VirtualConsole()});
+try {
+    const computed = selector => recordDom.window.getComputedStyle(recordDom.window.document.querySelector(selector));
+    assert.equal(computed('.journal-record').display,'grid','Later generic button styles must not center the record as a flex row');
+    assert.equal(computed('.journal-record').justifyContent,'normal');
+    assert.equal(computed('.journal-record-copy').textAlign,'left');
+    assert.equal(computed('.journal-delete-button').minWidth,'44px');
+    assert.equal(computed('.recent-select').display,'flex');
+    assert.equal(computed('.recent-select').alignItems,'center');
+    console.log('PASS: record list retains grid/left alignment, separate 44px delete control and vertically centered selection after the full CSS cascade');
+} finally { recordDom.window.close(); }
