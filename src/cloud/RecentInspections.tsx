@@ -150,7 +150,6 @@ export function RecentInspections({user,sites,inspector,mode='recent',onViewAll,
                     <div className="recent-checklist">{sections.map((section,sectionIndex)=><section key={section.title}><h3>{sectionIndex+1}. {section.title}</h3><dl>{section.items.map((item,itemIndex)=>{const grade=detail.record.answers[sectionIndex+'-'+itemIndex] as Grade|undefined;return <div key={item}><dt>{item}</dt><dd data-grade={grade}>{grade?grade+' · '+gradeNames[grade]:'미확인'}</dd></div>;})}</dl></section>)}</div>
                     {!!detail.record.photos.length&&<section className="recent-photos"><h3>첨부사진</h3><div>{detail.record.photos.map(image=>{const src='/api/recent-inspections/'+encodeURIComponent(detail.record.id)+'/photos/'+encodeURIComponent(image.id);return <button key={image.id} onClick={()=>setPhoto(src)} aria-label={image.name+' 크게 보기'}><img src={src} alt={image.name} loading="lazy"/></button>;})}</div></section>}
                 </>}
-                {detail&&onDelete&&canDeleteInspection(user,deletionTarget(selected))&&<button className="secondary danger recent-return" onClick={()=>{const target={...deletionTarget(selected),revision:detail.revision,siteName:detail.record.site.name};close();requestAnimationFrame(()=>onDelete([target]));}}>점검표 삭제</button>}
                 <button className="secondary recent-return" onClick={close}><ArrowLeft size={17} aria-hidden="true"/>목록으로</button>
             </div>
         </dialog>}
