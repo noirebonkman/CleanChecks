@@ -21,7 +21,7 @@
 .login-card .login-help{border-top:1px solid var(--line);padding-top:1.2rem;margin-top:1.5rem;display:grid;gap:.35rem;color:var(--muted);font-size:.8125rem;line-height:1.6}
 .login-help strong{font-weight:600;color:var(--text)}.login-help span{display:block}
 .login-card .form-error{padding:.8rem 1rem;background:#fff0ed;color:#9a291b;border-radius:.7rem;font-size:.875rem}
-.login-challenge{max-width:100%;min-height:65px;overflow:hidden}
+.login-challenge{position:absolute;inline-size:0;block-size:0;min-height:0;overflow:hidden}
 @keyframes login-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:380px){.login-card{padding:1.25rem;border-radius:1rem}.login-card .remember-option small{margin-left:1.7rem;width:100%}}
 .account-sync{padding:.6rem 1rem;background:var(--surface,#fff);border-bottom:1px solid var(--line,#d7e0e5);display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:.8rem}.account-sync button{margin-left:auto;min-height:2.5rem}.server-role-label{font-size:.75rem;color:var(--muted,#516b75)}
@@ -75,6 +75,7 @@ button.header-icon-button:hover:not(:disabled) { background:var(--soft); }
 .access-verification .login-challenge { max-width:100%; }
 .access-verification small { color:var(--muted); }
 .access-privacy { margin-top: 1rem; color: var(--muted, #526879); font-size: .75rem; line-height: 1.6; }
-.access-privacy summary { cursor: pointer; }
+.access-privacy summary { cursor: pointer; min-height:2.75rem; padding-block:.6rem; box-sizing:border-box; }
+.access-privacy summary:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
 .access-privacy p { font-size: inherit; }
 .access-privacy a { color: inherit; text-decoration: underline; text-underline-offset: .15em; }

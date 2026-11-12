@@ -96,7 +96,15 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const body = await jsonBody(request, 16384);
         await verifyChallenge(request, body.challenge, env, 'access');
         await checkLoginBurst(env);
-        return send({ ok:true });
+        // Restore a remembered session in the same verified round trip. Do not accept
+        // the earlier client-side session snapshot after a password/permission reset.
+        let account: Account | null = null;
+        if (sessionToken(request)) {
+            try { account = await authenticate(request,env); }
+            catch (error) { if (!(error instanceof ApiError && error.status === 401)) throw error; }
+        }
+        return send({ ok:true, user:account ? await publicAccount(account,env) : null,
+            ...(account ? {expiresAt:account.session_expires_at} : {}) });
     }
     if (path === '/api/health' && method === 'GET') {
         try {

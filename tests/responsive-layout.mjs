@@ -15,11 +15,13 @@ const html = '<!doctype html><html><head><style>' + css + '</style></head><body>
     '<details class="cloud-account" open><summary>긴 이름의 사용자 계정</summary>' +
     '<form class="cloud-form"><fieldset><label>이름<input></label><label><input type="checkbox">동의</label><button>저장</button></fieldset></form>' +
     '</details></section></div></div></main></div>' +
-    '<div class="login-shell"><main class="login-card">로그인</main></div></body></html>';
+    '<div class="login-shell"><main class="login-card">로그인<div class="login-challenge"></div></main></div></body></html>';
 const dom = new JSDOM(html, { virtualConsole: new VirtualConsole() });
 const style = selector => dom.window.getComputedStyle(dom.window.document.querySelector(selector));
 try {
     assert.equal(style('.login-card').marginLeft, '0px', 'Login must not inherit the application sidebar offset');
+    assert.equal(style('.login-challenge').minHeight, '0px', 'Invisible checks must not reserve an empty row');
+    assert.equal(style('.login-challenge').position, 'absolute');
     assert.equal(style('.server-settings').marginTop, '0px', 'Auto flex margins must not create the large blank setting header');
     assert.equal(style('.server-settings').width, '100%');
     assert.equal(style('.cloud-account').display, 'block', 'Open native details must not arrange forms in a horizontal flex row');

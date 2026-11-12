@@ -1,15 +1,15 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
-import App from '../App';
 import { readTheme } from '../preferences';
 import { APP_VERSION } from '../version';
-import { ClipboardCheck, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck } from 'lucide-react';
 import { post, request, ServerError, type ServerUser } from './client';
-import { prepareAccountWorkspace } from './account-workspace';
 import { Turnstile } from './Turnstile';
 import { WorkspaceMenu } from './WorkspaceMenu';
 import './login-and-access.css';
 
 const FieldCalendar = lazy(() => import('./FieldCalendar').then(module => ({ default:module.FieldCalendar })));
+const InspectionApplication = lazy(() => import('../App'));
+type Session = { user:ServerUser; expiresAt?:number };
 
 type Configuration = { setupRequired: boolean; turnstileSiteKey: string };
 function AccessPrivacyNotice() {
@@ -40,29 +40,28 @@ export function LoginApplication() {
     const enter = async (next: ServerUser, expiry?: number) => {
         expiresAt.current = typeof expiry === 'number' ? expiry : null;
         if (next.mustChangePassword) { setTemporaryUser(next); return; }
+        const { prepareAccountWorkspace } = await import('./account-workspace');
         await prepareAccountWorkspace(next);
         setTemporaryUser(null); setUser(next);
-    };
-    const restoreSession = async () => {
-        try {
-            const result=await request<{user:ServerUser;expiresAt?:number}>('session');
-            await enter(result.user,result.expiresAt);
-        } catch (cause) {
-            if (!(cause instanceof ServerError && cause.status === 401)) throw cause;
-        }
     };
     const restore = async () => {
         setLoading(true); setError('');
         try {
-            const next = await request<Configuration>('auth-config');
+            const [next, session] = await Promise.all([
+                request<Configuration>('auth-config'),
+                request<Session>('session').catch(cause => {
+                    if (cause instanceof ServerError && cause.status === 401) return null;
+                    throw cause;
+                }),
+            ]);
             setConfiguration(next);
-            if (next.turnstileSiteKey) {
+            if (next.turnstileSiteKey && session) {
                 setEntryVerified(false);
                 setEntryError('');
                 setEntryVersion(value => value+1);
             } else {
                 setEntryVerified(true);
-                await restoreSession();
+                if (session) await enter(session.user,session.expiresAt);
             }
         } catch (cause) { setError(cause instanceof Error ? cause.message : '서버에 연결하지 못했습니다.'); }
         finally { setLoading(false); }
@@ -72,10 +71,10 @@ export function LoginApplication() {
         entryChecking.current = true;
         setEntryError('');
         try {
-            await post('access-check', { challenge });
+            const session = await post<{user:ServerUser | null;expiresAt?:number}>('access-check', { challenge });
             setLoading(true);
             setEntryVerified(true);
-            try { await restoreSession(); }
+            try { if (session.user) await enter(session.user,session.expiresAt); }
             catch (cause) { setError(cause instanceof Error ? cause.message : '서버에 연결하지 못했습니다.'); }
             finally { setLoading(false); }
         } catch (cause) {
@@ -128,9 +127,9 @@ export function LoginApplication() {
     if (configuration?.turnstileSiteKey && !entryVerified) {
         return <div className="login-shell access-screen" data-theme={readTheme()}>
             <main className="login-card access-verification" aria-labelledby="access-verification-title">
-                <ShieldCheck size={36} aria-hidden="true"/>
-                <h1 id="access-verification-title">접속을 확인하고 있습니다</h1>
-                <p role="status">Cloudflare 자동 검사 후 이동합니다.</p>
+                <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
+                <h1 id="access-verification-title">기록을 여는 중입니다</h1>
+                <p role="status">잠시만 기다려 주세요.</p>
                 <Turnstile key={entryVersion} siteKey={configuration.turnstileSiteKey} action="access"
                     onToken={value => void verifyEntry(value)} onError={setEntryError}/>
                 {entryError && <><p role="alert" className="form-error">{entryError}</p>
@@ -144,11 +143,11 @@ export function LoginApplication() {
     }
     if (user) {
         if (workspace === 'inspection' || settingsOpen)
-            return <App key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}
+            return <Suspense fallback={<div className="login-shell access-screen" data-theme={readTheme()}><p role="status">점검 화면을 여는 중입니다…</p></div>}><InspectionApplication key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}
                 settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} onCloseSettings={inspect => {
                     if (inspect) setWorkspace('inspection');
                     setSettingsOpen(false);
-                }}/>;
+                }}/></Suspense>;
         if (workspace === 'calendar')
             return <Suspense fallback={<div className="login-shell" data-theme={readTheme()}><p role="status">캘린더를 여는 중입니다…</p></div>}>
                 <FieldCalendar user={user} onMenu={() => setWorkspace('menu')} onLogout={logout} onSettings={() => setSettingsOpen(true)}/>
@@ -170,13 +169,16 @@ export function LoginApplication() {
                 </div>
             </div>
             <div className="sign-in-form">
-            <p className="eyebrow"><ShieldCheck size={15} aria-hidden="true"/>계정 접속</p>
             <h1>{temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 등록' : '로그인'}</h1>
             <p>{temporaryUser ? '임시 비밀번호를 본인 비밀번호로 변경해야 사용할 수 있습니다.' : setup ? '최초 한 번만 등록합니다. 서버를 새로 만드는 과정이 아닙니다.' : '내 계정으로 점검 기록을 이어가세요.'}</p>
-            {loading ? <p role="status">서버 연결을 확인하고 있습니다…</p> : <>
+            <>
                 {error && <p role="alert" className="form-error">{error}</p>}
                 {message && <p role="status">{message}</p>}
-                {!configuration ? <button className="primary full" onClick={() => void restore()}>연결 다시 확인</button> :
+                {error && !token && configuration?.turnstileSiteKey && !loading &&
+                    <button type="button" className="text-button" disabled={busy} onClick={() => {
+                        setError(''); setChallengeVersion(value=>value+1);
+                    }}>접속 다시 확인</button>}
+                {!configuration && !loading ? <button className="primary full" onClick={() => void restore()}>연결 다시 확인</button> :
                 <form key={temporaryUser ? 'password' : setup ? 'setup' : 'login'} onSubmit={submit}>
                     <fieldset disabled={busy}>
                         {temporaryUser ? <>
@@ -193,15 +195,15 @@ export function LoginApplication() {
                             <label>비밀번호<input placeholder="비밀번호 입력" name="password" type="password" autoComplete="current-password" required maxLength={128}/></label>
                             <label className="remember-option"><input type="checkbox" name="remember"/>자동로그인 <small>30일간 로그인 유지</small></label>
                         </>}
-                        {!temporaryUser && configuration.turnstileSiteKey && <Turnstile key={challengeVersion} siteKey={configuration.turnstileSiteKey} onToken={setToken} onError={setError}/>}
-                        <button className="primary full" disabled={busy || (!temporaryUser && !!configuration.turnstileSiteKey && !token)}>{busy ? '처리 중…' : temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 생성' : '로그인'}</button>
+                        {!temporaryUser && !loading && configuration?.turnstileSiteKey && <Turnstile key={challengeVersion} siteKey={configuration.turnstileSiteKey} onToken={setToken} onError={setError}/>}
+                        <button className="primary full" disabled={busy || loading || (!temporaryUser && !!configuration?.turnstileSiteKey && !token)}>{busy ? '처리 중…' : loading || (!temporaryUser && !!configuration?.turnstileSiteKey && !token) ? '접속 확인 중…' : temporaryUser ? '비밀번호 변경' : setup ? '어드민 계정 생성' : '로그인'}</button>
                     </fieldset>
                 </form>}
                 {!temporaryUser && <aside className="login-help"><strong>비밀번호를 잊으셨나요?</strong><span>관리자에게 임시 비밀번호를 요청해 주세요.</span></aside>}
                 {configuration?.turnstileSiteKey && <AccessPrivacyNotice/>}
                 {configuration?.setupRequired && !temporaryUser && <button className="text-button" onClick={() => { setSetup(value => !value); setError(''); }}>{setup ? '로그인으로 돌아가기' : '최초 어드민 계정 등록'}</button>}
                 {temporaryUser && <button className="text-button" onClick={() => void logout().catch(cause => setError(cause.message))}>다른 계정으로 로그인</button>}
-            </>}
+            </>
             </div>
         </main>
     </div>;
