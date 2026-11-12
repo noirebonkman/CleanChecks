@@ -233,6 +233,8 @@ try{
    console.log('PASS: actual App navigates to the full archive; browser Back closes only the detail and preserves the archive; main returns to the selected inspector');
   }
   if(role==='owner'){
+   assert(!screen.queryByRole('region',{name:'점검 기록 목록'}),'Owner without a selected inspector must see only the shared recent feed');
+   assert(screen.getByRole('region',{name:'최근 점검'}));
    Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
    fireEvent.click(screen.getByRole('button',{name:'전체 기록',exact:true}));
    await screen.findByRole('button',{name:/권한 검증 현장 · 다른 점검자/});
