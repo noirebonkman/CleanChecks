@@ -372,9 +372,11 @@ async function route(request: Request, env: Environment): Promise<Response> {
     const recordMatch = /^\/api\/records\/([a-zA-Z0-9_-]+)$/.exec(path);
     if (recordMatch && (method === 'PUT' || method === 'DELETE')) {
         if (method === 'PUT') requirePermission(account, 'writeOwnRecords');
-        if (method === 'DELETE' && account.role !== 'owner')
-            throw new ApiError(403, '점검 기록 삭제는 어드민만 가능합니다.');
+        if (method === 'DELETE' && account.role !== 'owner') requirePermission(account, 'writeOwnRecords');
         const recordId = id(recordMatch[1]), body = await jsonBody(request), expected = revision(body.revision), at = now(), operation = crypto.randomUUID();
+        const deleting = method==='DELETE' ? await env.DB.prepare('SELECT account_id,payload,deleted FROM inspections WHERE id=?').bind(recordId).first<{account_id:string;payload:string;deleted:number}>() : null;
+        if(method==='DELETE'&&(!deleting||deleting.account_id!==account.id))throw new ApiError(403,'본인의 점검표만 삭제할 수 있습니다.');
+        const deletionDetail=deleting&&!deleting.deleted?await open<{site?:{name?:string};date?:string;status?:string}>(deleting.payload,env):null;
         const value = method === 'PUT' ? record(body.record) : null;
         if (value && value.id !== recordId)
             throw new ApiError(400, '점검표 식별번호가 다릅니다.');
@@ -400,6 +402,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
             ] : []),
             env.DB.prepare('INSERT INTO audit SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM inspections WHERE id=? AND operation_id=?)')
                 .bind(crypto.randomUUID(), account.id, deleted ? 'inspection-deleted' : 'inspection-saved', recordId, at, recordId, operation),
+            ...(method==='DELETE'?[env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM inspections WHERE id=? AND operation_id=?)').bind(crypto.randomUUID(),account.id,recordId,'record-deleted',await seal({name:deletionDetail?.site?.name||recordId,accountId:account.id,date:deletionDetail?.date,status:deletionDetail?.status,actorName:await open<string>(account.display_name,env)},env),at,recordId,operation)]:[]),
         ]);
         if (result[method === 'DELETE' ? 1 : 0].meta.changes !== 1)
             throw new ApiError(409, '다른 기기에서 변경되었거나 접근할 수 없는 점검표입니다.');

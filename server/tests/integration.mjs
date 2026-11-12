@@ -83,7 +83,16 @@ try{
  await expect('owner/history',403,{cookie:ordinaryCookie});
  await expect('accounts',403,{method:'POST',cookie:ordinaryCookie,body:{username:'extra-admin',name:'추가 관리자',password:'Admin-password-123',role:'admin'}});
  check('ludmin-only deletion and private deletion audit; record correction endpoint removed');
- await expect('records/record-1',403,{method:'DELETE',cookie:cookieOne,body:{revision:3}});
+ const selfDelete={...record,id:'self-delete-record'};
+ await expect('records/self-delete-record',200,{method:'PUT',cookie:cookieOne,body:{record:selfDelete,revision:0}});
+ await expect('records/self-delete-record',200,{method:'DELETE',cookie:cookieOne,body:{revision:1}});
+ await expect('records/self-delete-record',409,{method:'DELETE',cookie:cookieOne,body:{revision:1}});
+ const selfRow=await db.prepare('SELECT deleted,revision FROM inspections WHERE id=?').bind('self-delete-record').first();
+ assert.equal(selfRow.deleted,1);assert.equal(selfRow.revision,2);
+ assert(await db.prepare('SELECT record_id FROM inspection_trash WHERE record_id=?').bind('self-delete-record').first());
+ assert.equal((await db.prepare("SELECT COUNT(*) AS count FROM owner_actions WHERE target_id='self-delete-record'").first()).count,1);
+ assert.equal((await db.prepare("SELECT COUNT(*) AS count FROM audit WHERE target_id='self-delete-record' AND action='inspection-deleted'").first()).count,1);
+ check('inspectors soft-delete only their own records; encrypted recovery, one private audit and stale-delete protection retained');
  await expect('owner/records/record-1',200,{method:'DELETE',cookie:adminCookie,body:{revision:3,reason:'테스트 삭제'}});
  const deleted=(await expect('records',200,{cookie:cookieOne})).body.records.find(row=>row.id==='record-1');assert(deleted.deleted);assert.equal(deleted.revision,4);
  await expect('accounts/'+userOne.id,200,{method:'PATCH',cookie:adminCookie,body:{active:false}});

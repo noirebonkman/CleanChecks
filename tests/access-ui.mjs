@@ -6,6 +6,7 @@ import 'fake-indexeddb/auto';
 const dom=new JSDOM('<!doctype html><html lang="ko"><head><title>현장점검</title></head><body></body></html>',{url:'https://example.test',pretendToBeVisual:true});
 for(const key of ['window','document','localStorage','HTMLElement','Element','Node','Event','MouseEvent','CustomEvent','MutationObserver','FormData','getComputedStyle'])globalThis[key]=key==='getComputedStyle'?dom.window.getComputedStyle.bind(dom.window):dom.window[key];
 globalThis.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);globalThis.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);
+globalThis.WebSocket=undefined;
 globalThis.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
 dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
 dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
@@ -29,6 +30,12 @@ globalThis.fetch=async(url,options={})=>{
  if(path==='/api/login'){loginPayload=JSON.parse(options.body);activeUser={id:'login-account',username:'worker',name:'로그인 점검자',role:'inspector',active:true};return Response.json({user:activeUser});}
  if(path==='/api/logout'){activeUser=null;return Response.json({ok:true});}
  if(path==='/api/sites')return Response.json({sites:[{site,revision:1}]});
+ if(path.startsWith('/api/recent-inspections')){
+  if(path==='/api/recent-inspections/other-record')return Response.json({record:{...base,id:'other-record'},inspectorName:'다른 점검자',revision:1,updated:base.updated});
+  const params=new URL(path,'https://example.test').searchParams;
+  const items=params.get('inspector')&&params.get('inspector')!=='someone'?[]:[{id:'other-record',inspectorId:'someone',siteName:site.name,inspectorName:'다른 점검자',date:base.date,status:'draft',modified:false,issueCount:0,revision:1,updated:base.updated}];
+  return Response.json({version:'shared-test',items,inspectors:[{id:'someone',name:'다른 점검자'}],nextCursor:null});
+ }
  if(path==='/api/my-history')return Response.json({events:[]});
  if(path==='/api/owner/history?scope=calendar'){
   assert.equal(activeUser?.role,'owner');
@@ -210,6 +217,38 @@ try{
   await api.save({...state,sites:[site],staff:[...state.staff,{id:'someone',name:'다른 점검자',salt:'',hash:'',active:true}],records:[{...base,id:'other-record'}, {...base,id:'my-record',staffId:activeUser.id,issues:'본인 내용'}]});
   render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{}}));
   await screen.findByRole('heading',{name:'점검 기록'});
+  if(role==='inspector'&&!scenario.custom){
+   Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
+   fireEvent.click(screen.getByRole('button',{name:'전체 기록',exact:true}));
+   await screen.findByRole('heading',{name:'전체 점검 기록'});
+   fireEvent.click(await screen.findByRole('button',{name:/권한 검증 현장 · 다른 점검자/}));
+   await within(await screen.findByRole('dialog')).findByText('타인 비공개 내용');
+   await act(async()=>{window.history.back();await new Promise(resolve=>setTimeout(resolve,80));});
+   assert(!screen.queryByRole('dialog'),'Browser Back must close the record without leaving the archive');
+   assert(screen.getByRole('heading',{name:'전체 점검 기록'}));
+   fireEvent.click(screen.getByRole('button',{name:'현장점검',exact:true}));
+   await screen.findByRole('heading',{name:'점검 기록'});
+   assert(screen.getByRole('button',{name:'현재 사용자님의 최근 점검'}));
+   Object.defineProperty(navigator,'onLine',{configurable:true,value:undefined});
+   console.log('PASS: actual App navigates to the full archive; browser Back closes only the detail and preserves the archive; main returns to the selected inspector');
+  }
+  if(role==='owner'){
+   Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
+   fireEvent.click(screen.getByRole('button',{name:'전체 기록',exact:true}));
+   await screen.findByRole('button',{name:/권한 검증 현장 · 다른 점검자/});
+   fireEvent.click(screen.getByRole('button',{name:'선택 삭제',exact:true}));
+   fireEvent.click(screen.getByRole('checkbox',{name:'표시된 삭제 가능 기록 전체 선택'}));
+   fireEvent.click(screen.getByRole('button',{name:'선택 삭제',exact:true}));
+   const deletionDialog=await screen.findByRole('dialog',{name:'점검표를 삭제할까요?'});
+   assert(within(deletionDialog).getByLabelText('어드민 비밀번호'));
+   assert(within(deletionDialog).getByRole('button',{name:'1건 삭제'}));
+   fireEvent.click(within(deletionDialog).getByRole('button',{name:'닫기',exact:true}));
+   await waitFor(()=>assert(!screen.queryByRole('dialog')));
+   fireEvent.click(screen.getByRole('button',{name:'현장점검',exact:true}));
+   await screen.findByRole('heading',{name:'점검 기록'});
+   Object.defineProperty(navigator,'onLine',{configurable:true,value:undefined});
+   console.log('PASS: owner archive displays bulk deletion and one password confirmation; cancellation preserves every record');
+  }
   const sidebar=document.querySelector('aside');
   assert.equal(!!screen.queryByRole('button',{name:'새 점검',exact:true}),write);
   if(role==='owner')assert(!within(sidebar).queryByRole('button',{name:/현재 사용자/}));
@@ -223,7 +262,7 @@ try{
    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,50));});
    assert.equal(document.querySelector('.top-person').getAttribute('aria-label'),'로그인 계정: 현재 사용자');
    assert(!screen.queryByRole('button',{name:'수정하기',exact:true}));
-   assert(!screen.queryByRole('button',{name:'점검표 삭제',exact:true}));
+   assert.equal(!!screen.queryByRole('button',{name:'점검표 삭제',exact:true}),role==='owner');
    assert(screen.getAllByRole('button',{name:'A 양호'}).every(button=>button.disabled));
    fireEvent.click(screen.getByRole('button',{name:'메뉴 열기'}));
   }
@@ -308,7 +347,7 @@ try{
  let savedPermissions;
  render(React.createElement(api.AccountPermissionsForm,{person:editablePerson,disabled:false,onSave:async values=>{savedPermissions=values;}}));
  fireEvent.change(screen.getByRole('combobox',{name:'개별 사용자 모든 점검자 기록 조회'}),{target:{value:'allow'}});
- fireEvent.change(screen.getByRole('combobox',{name:'개별 사용자 본인 점검 작성·수정'}),{target:{value:'deny'}});
+ fireEvent.change(screen.getByRole('combobox',{name:'개별 사용자 본인 점검 작성·수정·삭제'}),{target:{value:'deny'}});
  fireEvent.click(screen.getByRole('button',{name:'개인별 권한 저장'}));
  assert.equal(savedPermissions.viewAllRecords,true);assert.equal(savedPermissions.writeOwnRecords,false);assert.equal(savedPermissions.manageSites,null);
  fireEvent.click(screen.getByRole('button',{name:'등급 기본값으로 되돌리기'}));

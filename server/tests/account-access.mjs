@@ -66,7 +66,7 @@ try{
  await call('records/record',403,{method:'PUT',cookie:owner.cookie,body:{record:{...record,issues:'변조'},revision:1}});
  await call('records/owner-new',403,{method:'PUT',cookie:owner.cookie,body:{record:{...record,id:'owner-new'},revision:0}});
  await call('records/owner-new/photos/photo',403,{method:'PUT',cookie:owner.cookie,body:{}});
- await call('records/record',403,{method:'DELETE',cookie:worker.cookie,body:{revision:1}});
+ await call('records/missing-foreign',403,{method:'DELETE',cookie:worker.cookie,body:{revision:1}});
  await call('owner/records/record',403,{method:'DELETE',cookie:owner.cookie,body:{revision:1,reason:'실수',password:'wrong'}});
  await call('owner/records/record',200,{method:'DELETE',cookie:owner.cookie,body:{revision:1,reason:'실수',password:pass}});
  assert.equal((await call('owner/trash',200,{cookie:owner.cookie})).data.records[0].record.issues,'원문');
