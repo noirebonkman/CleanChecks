@@ -36,7 +36,7 @@ export function Turnstile({ siteKey, action = 'login', onToken, onError }: { sit
                 'expired-callback': () => { if (active) callbacks.current.onToken(''); },
                 'error-callback': () => { if (active) { callbacks.current.onToken(''); callbacks.current.onError('로봇 방지 확인을 다시 시도해 주세요.'); } },
             });
-        }).catch(error => { if (active) callbacks.current.onError(error.message); });
+        }).catch(error => { if (active) { callbacks.current.onToken(''); callbacks.current.onError(error.message); } });
         return () => { active = false; if (widget) window.turnstile?.remove(widget); };
     }, [siteKey, action]);
     return <div className="login-challenge" ref={element} aria-hidden="true"/>;

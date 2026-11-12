@@ -262,6 +262,8 @@ async function route(request: Request, env: Environment): Promise<Response> {
     const accountMatch = /^\/api\/accounts\/([a-zA-Z0-9_-]+)$/.exec(path);
     if (accountMatch && method === 'PATCH') {
         requirePermission(account, 'manageUsers');
+        if (account.role !== 'owner')
+            throw new ApiError(403, '비밀번호 초기화와 계정 상태·등급 변경은 어드민만 가능합니다.');
         const target = id(accountMatch[1]), body = await jsonBody(request);
         if (target === account.id)
             throw new ApiError(400, '본인 계정은 이 메뉴에서 변경할 수 없습니다.');

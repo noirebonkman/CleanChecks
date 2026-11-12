@@ -169,11 +169,13 @@ try {
     await call('accounts', 403, { cookie: worker.cookie, method: 'POST', body: { username: 'illegal', name: '불가', password: temporary, role: 'admin' } });
     const child = (await call('accounts', 200, { cookie: owner.cookie })).data.users.find(user => user.username === 'child');
     await call('accounts/' + child.id, 403, { cookie: worker.cookie, method: 'PATCH', body: { role: 'admin' } });
-    await call('accounts/' + managerId, 404, { cookie: worker.cookie, method: 'PATCH', body: { active: false } });
+    await call('accounts/' + managerId, 403, { cookie: worker.cookie, method: 'PATCH', body: { active: false } });
+    await call('accounts/' + child.id, 403, { cookie: worker.cookie, method: 'PATCH', body: { active: false } });
+    await call('accounts/' + child.id, 403, { cookie: worker.cookie, method: 'PATCH', body: { password: temporary } });
     await call('accounts/' + child.id + '/permissions', 403, { cookie: worker.cookie, method: 'PATCH',
         body: { revision: 0, permissions: permissions(true), reason: '불가' } });
     await call('owner/records/own', 403, { cookie: worker.cookie, method: 'DELETE', body: { revision: 1, reason: '불가', password: chosen } });
-    console.log('PASS: delegated inspector can manage sites/ordinary accounts but cannot elevate roles, change permissions or delete others');
+    console.log('PASS: delegated inspector can manage sites and create/read ordinary accounts but cannot reset passwords, suspend accounts, elevate roles, change permissions or delete others');
 
     await call('accounts/' + managerId + '/permissions', 200, { cookie: owner.cookie, method: 'PATCH',
         body: { revision: 0, permissions: permissions(false, false, false, false), reason: '관리자 기능 일시 차단' } });

@@ -20,6 +20,7 @@ await api.load();
 await api.save({version:1,installId:'legacy-device',sites:[site],staff:[{id:'legacy-person',name:'로그인 점검자',salt:'',hash:'',active:true}],records:[{...base,id:'legacy-record',staffId:'legacy-person'}],logs:[],...api.bootstrap});
 let activeUser=null,loginPayload;
 let promotionTarget={id:'promotion-target',username:'promotion',name:'등급 변경 테스트',role:'inspector',active:true};
+const resetTarget={id:'reset-target',username:'reset-worker',name:'초기화 대상',role:'inspector',active:true};
 let failPromotion=true;
 globalThis.fetch=async(url,options={})=>{
  const path=String(url);
@@ -43,26 +44,31 @@ globalThis.fetch=async(url,options={})=>{
   promotionTarget={...promotionTarget,role:patch.role};
   return Response.json({ok:true,user:promotionTarget});
  }
- if(path==='/api/accounts'&&activeUser?.role==='owner')return Response.json({users:[activeUser,promotionTarget]});
- if(path==='/api/accounts'||path==='/api/people')return Response.json({users:activeUser?[activeUser]:[]});
+ if(path==='/api/accounts')return Response.json({users:activeUser?[activeUser,promotionTarget,resetTarget]:[]});
+ if(path==='/api/people')return Response.json({users:activeUser?[activeUser]:[]});
  return Response.json({error:'지원하지 않음'},{status:404});
 };
 try{
  const defaultFetch=globalThis.fetch;
  const widgets=[];
- let accessChecks=0,sessionChecks=0;
+ let accessChecks=0,sessionChecks=0,protectedLoginCalls=0,protectedSetupCalls=0,setupAvailable=false;
  window.turnstile={
   render(element,options){widgets.push(options);return String(widgets.length);},
   remove(){},
  };
  globalThis.fetch=async(url,options={})=>{
-  if(String(url)==='/api/auth-config')return Response.json({setupRequired:false,turnstileSiteKey:'test-site-key'});
+  if(String(url)==='/api/auth-config')return Response.json({setupRequired:setupAvailable,turnstileSiteKey:'test-site-key'});
   if(String(url)==='/api/access-check'){
    accessChecks++;
    const valid=JSON.parse(options.body).challenge==='valid-access-token';
    return Response.json(valid?{ok:true,user:activeUser}:{error:'접속 검사 재시도'},{status:valid?200:403});
   }
   if(String(url)==='/api/session')sessionChecks++;
+  if(String(url)==='/api/login'){
+   protectedLoginCalls++;
+   return Response.json({error:'로봇 방지 확인이 만료되었습니다. 다시 시도해 주세요.'},{status:403});
+  }
+  if(String(url)==='/api/setup'){protectedSetupCalls++;return Response.json({ok:true});}
   return defaultFetch(url,options);
  };
  render(React.createElement(api.LoginApplication));
@@ -75,15 +81,50 @@ try{
  assert.equal(accessChecks,0);
  fireEvent.change(screen.getByLabelText('아이디'),{target:{value:'typed-during-verification'}});
  assert.equal(screen.getByLabelText('아이디').value,'typed-during-verification');
+ fireEvent.change(screen.getByLabelText('비밀번호'),{target:{value:'test-password-123'}});
  assert(screen.getByRole('button',{name:'접속 확인 중…'}).disabled);
+ await act(async()=>fireEvent.submit(screen.getByLabelText('아이디').closest('form')));
+ assert.equal(protectedLoginCalls,0,'Direct form submit/Enter must not bypass a pending robot check');
  await act(async()=>widgets[0].callback('valid-login-token'));
  assert(!screen.getByRole('button',{name:'로그인',exact:true}).disabled);
+ assert(!screen.queryByText('접속 확인을 완료한 뒤 로그인해 주세요.'));
  await act(async()=>widgets[0]['expired-callback']?.());
  await act(async()=>widgets[0]['error-callback']());
+ assert(screen.getByRole('button',{name:'접속 확인 필요'}).disabled);
+ await act(async()=>fireEvent.submit(screen.getByLabelText('아이디').closest('form')));
+ assert.equal(protectedLoginCalls,0,'Failed or expired checks must not reach the login API');
  fireEvent.click(await screen.findByRole('button',{name:'접속 다시 확인'}));
  await waitFor(()=>assert.equal(widgets.length,2));
  assert.equal(screen.getByLabelText('아이디').value,'typed-during-verification');
+ await act(async()=>widgets[0].callback('stale-token'));
+ assert(screen.getByRole('button',{name:'접속 확인 중…'}).disabled,'Removed widgets must not unlock login');
+ await act(async()=>widgets[1].callback('server-rejected-token'));
+ fireEvent.click(screen.getByRole('button',{name:'로그인',exact:true}));
+ await screen.findByText('로봇 방지 확인이 만료되었습니다. 다시 시도해 주세요.');
+ assert.equal(protectedLoginCalls,1);
+ assert(screen.getByRole('button',{name:'접속 확인 필요'}).disabled);
+ fireEvent.click(screen.getByRole('button',{name:'접속 다시 확인'}));
+ await waitFor(()=>assert.equal(widgets.length,4));
+ await act(async()=>widgets[3].callback('fresh-valid-token'));
+ assert(!screen.queryByText('로봇 방지 확인이 만료되었습니다. 다시 시도해 주세요.'),'A successful recheck must clear the robot-error message');
+ assert(!screen.getByRole('button',{name:'로그인',exact:true}).disabled);
  cleanup();
+ widgets.length=0;setupAvailable=true;
+ render(React.createElement(api.LoginApplication));
+ await screen.findByLabelText('아이디');
+ await waitFor(()=>assert.equal(widgets.length,1));
+ await act(async()=>widgets[0].callback('login-only-token'));
+ fireEvent.click(screen.getByRole('button',{name:'최초 어드민 계정 등록'}));
+ await waitFor(()=>assert.equal(widgets.length,2));
+ assert(screen.getByRole('button',{name:'접속 확인 중…'}).disabled,'A login token must not unlock a newly mounted setup form');
+ await act(async()=>fireEvent.submit(screen.getByLabelText('초기 설정 코드').closest('form')));
+ assert.equal(protectedSetupCalls,0,'Setup submission must enforce the same robot check as login');
+ await act(async()=>widgets[1].callback('setup-token'));
+ assert(!screen.getByRole('button',{name:'어드민 계정 생성'}).disabled);
+ fireEvent.click(screen.getByRole('button',{name:'로그인으로 돌아가기'}));
+ assert(screen.getByRole('button',{name:'접속 확인 중…'}).disabled,'Returning to login must require a fresh token');
+ cleanup();setupAvailable=false;
+ console.log('PASS: pending/failed/expired checks block direct form submission; recheck clears robot errors; login and setup cannot reuse stale widget tokens');
  widgets.length=0;accessChecks=0;sessionChecks=0;
  activeUser={id:'remembered-account',username:'remembered',name:'기억한 점검자',role:'inspector',active:true};
  render(React.createElement(api.LoginApplication));
@@ -199,6 +240,18 @@ try{
   if(users){
    fireEvent.click(screen.getByRole('button',{name:'사용자 관리',exact:true}));
    await screen.findByRole('searchbox',{name:'계정 검색'});
+   fireEvent.click(await screen.findByRole('button',{name:'초기화 대상 계정 상세'}));
+   const managementTabs=screen.queryByRole('navigation',{name:'계정 관리 기능'});
+   assert.equal(!!managementTabs,role==='owner','Only the owner may access password and account-state controls, even with delegated account management');
+   if(role==='owner'){
+    fireEvent.click(within(managementTabs).getByRole('button',{name:'비밀번호',exact:true}));
+    assert(screen.getByRole('button',{name:'비밀번호 초기화',exact:true}));
+    fireEvent.click(within(managementTabs).getByRole('button',{name:'계정 상태',exact:true}));
+    assert(screen.getByRole('button',{name:'사용 중지',exact:true}));
+   }else{
+    assert(!screen.queryByRole('button',{name:'비밀번호 초기화',exact:true}));
+    assert(!screen.queryByRole('button',{name:'사용 중지',exact:true}));
+   }
    if(role==='owner'){
     const roleField=await screen.findByRole('combobox',{name:'등급 변경 테스트 등급'});
     fireEvent.change(roleField,{target:{value:'admin'}});
@@ -266,6 +319,7 @@ try{
  assert.equal(api.resolvePermissions('owner',{writeOwnRecords:true}).writeOwnRecords,false);
  assert.equal(api.hasPermission({role:'owner',permissions:{viewAllRecords:true,writeOwnRecords:true,manageSites:true,manageUsers:true}},'writeOwnRecords'),false);
  console.log('PASS: owner inspection writes remain denied even with old or overridden permissions');
+ console.log('PASS: only owner sees password reset and account suspension controls; managers and delegated account creators remain read-only for existing accounts');
  console.log('PASS: role-filtered sidebars, no local PIN, owner-only menus, read-only foreign records and WCAG structure for all three roles');
  const reviewer={id:'revoked-reviewer',name:'조회자',username:'reviewer',role:'admin',active:true};
  await api.prepareAccountWorkspace(reviewer);
