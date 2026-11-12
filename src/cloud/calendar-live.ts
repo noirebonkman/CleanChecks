@@ -61,7 +61,6 @@ export function useCalendarLive(onChange: () => void, editingItem: string | null
             update();
         }
         publish.current = sendEditing;
-        document.addEventListener('visibilitychange',sendEditing);
         const heartbeat = window.setInterval(() => { if (editingRef.current !== null && document.visibilityState === 'visible') sendEditing(); },editorPulse);
 
         function connect() {
@@ -87,11 +86,41 @@ export function useCalendarLive(onChange: () => void, editingItem: string | null
             };
         }
         function scheduleReconnect() {
-            if (closed || timer !== undefined) return;
+            if (closed || !navigator.onLine || timer !== undefined) return;
             timer = window.setTimeout(() => { timer = undefined; connect(); },retry);
             retry = Math.min(30000,retry * 2);
         }
-        window.addEventListener('online',connect);
+        function resume() {
+            window.clearTimeout(timer);
+            timer = undefined;
+            retry = 1000;
+            connect();
+        }
+        function visibilityChanged() {
+            sendEditing();
+            if (document.visibilityState === 'visible') {
+                resume();
+                handler.current();
+            }
+        }
+        function offline() {
+            window.clearTimeout(timer);
+            timer = undefined;
+            window.clearTimeout(expiryTimer);
+            connected.current = false;
+            setEditors([]);
+            if (socket) {
+                const previous = socket;
+                socket = undefined;
+                previous.onopen = null;
+                previous.onmessage = null;
+                previous.onclose = null;
+                previous.close();
+            }
+        }
+        document.addEventListener('visibilitychange',visibilityChanged);
+        window.addEventListener('online',resume);
+        window.addEventListener('offline',offline);
         connect();
         return () => {
             closed = true;
@@ -99,9 +128,10 @@ export function useCalendarLive(onChange: () => void, editingItem: string | null
             window.clearTimeout(timer);
             window.clearTimeout(expiryTimer);
             window.clearInterval(heartbeat);
-            document.removeEventListener('visibilitychange',sendEditing);
+            document.removeEventListener('visibilitychange',visibilityChanged);
             publish.current = () => {};
-            window.removeEventListener('online',connect);
+            window.removeEventListener('online',resume);
+            window.removeEventListener('offline',offline);
             if (socket) {
                 socket.onopen = null;
                 socket.onmessage = null;

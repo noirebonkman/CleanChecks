@@ -32,9 +32,9 @@ export function Turnstile({ siteKey, action = 'login', onToken, onError }: { sit
             if (active && element.current && window.turnstile) widget = window.turnstile.render(element.current, {
                 sitekey: siteKey, action, theme: 'auto', size: 'flexible',
                 execution: 'render', appearance: 'interaction-only', language: 'ko',
-                callback: (token: string) => callbacks.current.onToken(token),
-                'expired-callback': () => callbacks.current.onToken(''),
-                'error-callback': () => { callbacks.current.onToken(''); callbacks.current.onError('로봇 방지 확인을 다시 시도해 주세요.'); },
+                callback: (token: string) => { if (active) callbacks.current.onToken(token); },
+                'expired-callback': () => { if (active) callbacks.current.onToken(''); },
+                'error-callback': () => { if (active) { callbacks.current.onToken(''); callbacks.current.onError('로봇 방지 확인을 다시 시도해 주세요.'); } },
             });
         }).catch(error => { if (active) callbacks.current.onError(error.message); });
         return () => { active = false; if (widget) window.turnstile?.remove(widget); };

@@ -71,10 +71,14 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
     }, [signature, tick, user.id]);
     useEffect(() => {
         const online = () => setTick(value => value + 1);
-        const timer = setInterval(online, 30000);
+        const foreground = () => {
+            if (document.visibilityState === 'visible' && navigator.onLine) online();
+        };
+        const timer = setInterval(foreground, 30000);
         const offline = () => setStatus('오프라인 · 기기에 보존 중');
         window.addEventListener('online', online); window.addEventListener('offline', offline);
-        return () => { clearInterval(timer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); };
+        document.addEventListener('visibilitychange', foreground);
+        return () => { clearInterval(timer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); document.removeEventListener('visibilitychange', foreground); };
     }, []);
     const content = <>
         <div className="account-sync" role="status"><span>{status}{lastSynced && <small> · 마지막 저장 확인 {lastSynced}</small>}{storageUsage&&storageUsage.used>=storageUsage.limit*.8&&<strong> · 서버 저장 공간 80% 이상 사용 중</strong>}</span><button className="text-button" disabled={busy} onClick={() => void sync()}>전송 다시 확인</button></div>

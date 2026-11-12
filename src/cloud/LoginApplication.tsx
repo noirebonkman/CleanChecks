@@ -5,6 +5,7 @@ import { ClipboardCheck } from 'lucide-react';
 import { post, request, ServerError, type ServerUser } from './client';
 import { Turnstile } from './Turnstile';
 import { WorkspaceMenu } from './WorkspaceMenu';
+import { monitorSession } from './session-monitor';
 import './login-and-access.css';
 
 const FieldCalendar = lazy(() => import('./FieldCalendar').then(module => ({ default:module.FieldCalendar })));
@@ -86,20 +87,9 @@ export function LoginApplication() {
     useEffect(() => { void restore(); }, []);
     useEffect(() => {
         const expired = () => { if (!changing.current && userRef.current) clear(); };
-        const check = () => {
-            if (!userRef.current) return;
-            if (expiresAt.current && Date.now() >= expiresAt.current) { clear(); return; }
-            if (!navigator.onLine) return;
-            void request<{ user: ServerUser }>('session').then(value => {
-                const old = userRef.current;
-                if (old && (value.user.id !== old.id || value.user.role !== old.role || JSON.stringify(value.user.permissions) !== JSON.stringify(old.permissions))) clear();
-            }).catch(() => {});
-        };
-        const visible = () => { if (document.visibilityState === 'visible') check(); };
-        const timer = setInterval(check, 60000);
+        const stop = monitorSession({ currentUser: () => userRef.current, expiresAt: () => expiresAt.current, invalidate: clear });
         window.addEventListener('cleanchecks:server-logout', expired);
-        window.addEventListener('online', check); document.addEventListener('visibilitychange', visible);
-        return () => { clearInterval(timer); window.removeEventListener('cleanchecks:server-logout', expired); window.removeEventListener('online', check); document.removeEventListener('visibilitychange', visible); };
+        return () => { stop(); window.removeEventListener('cleanchecks:server-logout', expired); };
     }, []);
     const logout = async () => { await post('logout', {}); clear(); };
     const submit = async (event: FormEvent<HTMLFormElement>) => {
