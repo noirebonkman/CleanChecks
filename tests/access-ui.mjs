@@ -214,7 +214,7 @@ try{
   activeUser={id:'role-'+role+(scenario.custom?'-custom':''),username:role,name:'현재 사용자',role,active:true,...(scenario.custom?{permissions:{viewAllRecords:viewAll,writeOwnRecords:write,manageSites:sites,manageUsers:users}}:{})};
   await api.prepareAccountWorkspace(activeUser);
   let state=await api.load();
-  await api.save({...state,sites:[site],staff:[...state.staff,{id:'someone',name:'다른 점검자',salt:'',hash:'',active:true}],records:[{...base,id:'other-record'}, {...base,id:'my-record',staffId:activeUser.id,issues:'본인 내용'}]});
+  await api.save({...state,sites:[site],staff:[...state.staff,{id:'someone',name:'다른 점검자',salt:'',hash:'',active:true},{id:'empty-person',name:'기록 없는 점검자',salt:'',hash:'',active:true}],records:[{...base,id:'other-record'}, {...base,id:'my-record',staffId:activeUser.id,issues:'본인 내용'}]});
   render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{}}));
   await screen.findByRole('heading',{name:'점검 기록'});
   if(role==='inspector'&&!scenario.custom){
@@ -228,7 +228,7 @@ try{
    assert(screen.getByRole('heading',{name:'전체 점검 기록'}));
    fireEvent.click(screen.getByRole('button',{name:'현장점검',exact:true}));
    await screen.findByRole('heading',{name:'점검 기록'});
-   assert(screen.getByRole('button',{name:'현재 사용자님의 최근 점검'}));
+   assert(screen.getByRole('button',{name:'최근 점검'}));
    Object.defineProperty(navigator,'onLine',{configurable:true,value:undefined});
    console.log('PASS: actual App navigates to the full archive; browser Back closes only the detail and preserves the archive; main returns to the selected inspector');
   }
@@ -250,6 +250,7 @@ try{
    console.log('PASS: owner archive displays bulk deletion and one password confirmation; cancellation preserves every record');
   }
   const sidebar=document.querySelector('aside');
+  assert(!within(sidebar).queryByRole('button',{name:/기록 없는 점검자/}));
   assert.equal(!!screen.queryByRole('button',{name:'새 점검',exact:true}),write);
   if(role==='owner')assert(!within(sidebar).queryByRole('button',{name:/현재 사용자/}));
   assert(!within(sidebar).queryByRole('button',{name:'점검자 추가',exact:true}));

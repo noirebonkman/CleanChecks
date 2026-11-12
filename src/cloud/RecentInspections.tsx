@@ -21,8 +21,8 @@ function savedFilters(key:string):Filters {
     catch{return {...emptyFilters};}
 }
 
-export function RecentInspections({user,sites,inspector,mode='recent',onViewAll,onBack,onDetailState,onDelete}: {
-    onDelete?:(targets:InspectionDeleteTarget[])=>void;user:ServerUser;sites:Site[];inspector?:Inspector;mode?:'recent'|'all';onViewAll?:()=>void;onBack?:()=>void;onDetailState?:(open:boolean,close:()=>void)=>void;
+export function RecentInspections({user,sites,mode='recent',onViewAll,onBack,onDetailState,onDelete}: {
+    onDelete?:(targets:InspectionDeleteTarget[])=>void;user:ServerUser;sites:Site[];mode?:'recent'|'all';onViewAll?:()=>void;onBack?:()=>void;onDetailState?:(open:boolean,close:()=>void)=>void;
 }) {
     const all=mode==='all',preferenceKey='lucent-recent-collapsed:'+user.id;
     const filterKey='lucent-inspection-filters:'+user.id;
@@ -41,15 +41,15 @@ export function RecentInspections({user,sites,inspector,mode='recent',onViewAll,
     const refreshRef=useRef<(force?:boolean)=>void>(()=>{});
     const close=()=>{setSelected(null);setPhoto('');setDetail(null);setDetailError('');};
     useBackNavigation({modal:!!selected&&!onDetailState,drawer:false,screen:'home',closeModal:close,closeDrawer:()=>{},home:close});
-    const {connected:live}=useCalendarLive(()=>refreshRef.current(),null,'inspections-changed',!collapsed&&(all||!!inspector));
+    const {connected:live}=useCalendarLive(()=>refreshRef.current(),null,'inspections-changed',!collapsed);
     useEffect(()=>{const timer=setTimeout(()=>setSearch(filters.q),250);return()=>clearTimeout(timer);},[filters.q]);
     useEffect(()=>{try{sessionStorage.setItem(filterKey,JSON.stringify(filters));}catch{}},[filterKey,filters]);
     const activeFilters=Object.values(filters).filter(Boolean).length;
     const invalidRange=all&&!!filters.from&&!!filters.until&&filters.from>filters.until;
-    const params=new URLSearchParams(all?{q:search,inspector:filters.inspector,from:filters.from,until:filters.until,status:filters.status}:{inspector:inspector?.id||''});
+    const params=new URLSearchParams(all?{q:search,inspector:filters.inspector,from:filters.from,until:filters.until,status:filters.status}:{});
     const queryKey=params.toString();
     useEffect(()=>{
-        if(collapsed||(!all&&!inspector)||invalidRange)return;
+        if(collapsed||invalidRange)return;
         let stopped=false,pending=false,queued=false,version='',checked=0;
         const abort=new AbortController();pages.current=1;setSelectedIds([]);setItems([]);setNextCursor(null);setError('');
         async function pull(force=false){
@@ -101,11 +101,11 @@ export function RecentInspections({user,sites,inspector,mode='recent',onViewAll,
     const deletionTarget=(item:RecentItem):InspectionDeleteTarget=>({id:item.id,ownerId:item.inspectorId,siteName:item.siteName,date:item.date,revision:item.revision});
     const deletable=onDelete?items.filter(item=>canDeleteInspection(user,deletionTarget(item))):[];
     const selectedForDeletion=deletable.filter(item=>selectedIds.includes(item.id));
-    const title=all?'전체 점검 기록':inspector?inspector.name+'님의 최근 점검':'최근 점검';
+    const title=all?'전체 점검 기록':'최근 점검';
     function changeFilter(key:keyof Filters,value:string){setFilters(current=>({...current,[key]:value}));}
     return <section className={all?'recent-page':'recent-inspections'} aria-label={title}>
         {all?<header className="all-inspections-heading"><button className="inspection-home-link" onClick={onBack}><ArrowLeft size={18} aria-hidden="true"/>현장점검</button><h1>전체 점검 기록</h1><p>점검표를 누르면 내용을 바로 확인합니다.</p></header>:<header className="recent-heading">
-            <button type="button" className="recent-toggle" aria-label={title} onClick={toggle} aria-expanded={!collapsed} aria-controls="recent-inspection-items"><ChevronDown size={18} aria-hidden="true"/><span className="recent-title">{title}</span></button>
+            <button type="button" className="recent-toggle" aria-label={title} onClick={toggle} aria-expanded={!collapsed} aria-controls="recent-inspection-items"><ChevronDown size={18} aria-hidden="true"/><span className="recent-title">{title}</span><span>전체 점검자</span></button>
             <button className="text-button" onClick={onViewAll}>전체 기록<ChevronRight size={15} aria-hidden="true"/></button>
         </header>}
         {all&&<div className="all-inspections-search">
@@ -135,7 +135,7 @@ export function RecentInspections({user,sites,inspector,mode='recent',onViewAll,
                     <span className="recent-state" data-state={item.status}>{item.status==='complete'?<Check size={12} aria-hidden="true"/>:null}{item.status==='complete'?'완료':'작성 중'}</span>
                 </button></div>)}
             </div>
-            {!items.length&&!busy&&!error&&<p className="recent-empty">{!all&&!inspector?'왼쪽 점검자 목록에서 점검자를 선택해 주세요.':all?'조건에 맞는 점검 기록이 없습니다.':'저장된 점검이 없습니다.'}</p>}
+            {!items.length&&!busy&&!error&&<p className="recent-empty">{all?'조건에 맞는 점검 기록이 없습니다.':'저장된 점검이 없습니다.'}</p>}
             {all&&nextCursor&&<button className="secondary recent-load-more" disabled={busy} onClick={()=>{pages.current++;refreshRef.current(true);}}>이전 점검 더 보기</button>}</>}
         </div></div>
         {selected&&<dialog ref={dialog} className="recent-inspection-dialog" aria-labelledby="recent-detail-heading" onCancel={event=>{event.preventDefault();if(photo)setPhoto('');else close();}}>

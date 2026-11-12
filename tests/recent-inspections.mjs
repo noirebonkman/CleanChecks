@@ -18,7 +18,7 @@ mkdirSync('.test-work',{recursive:true});
 await build({entryPoints:['src/cloud/RecentInspections.tsx'],outfile:'.test-work/recent-ui.mjs',bundle:true,format:'esm',platform:'node',packages:'external',jsx:'automatic'});
 const {RecentInspections}=await import('../.test-work/recent-ui.mjs'),React=await import('react');
 const {render,screen,within,fireEvent,waitFor,act,cleanup}=await import('@testing-library/react');
-let count=0,failed=false,version='v1',allOpened=0;
+let recentScope='',count=0,failed=false,version='v1',allOpened=0;
 const item={id:'recent-1',inspectorId:'other',rating:'개선 필요',issueCount:1,siteName:'다른 사람의 현장',inspectorName:'다른 점검자',date:'2026-11-12T12:00',status:'complete',modified:true,updated:'2026-11-12T12:00:00Z',revision:1};
 const site={id:'site',name:item.siteName,zone:'지역',address:'실제 기록 주소',priority:'상',cycle:'주 2회',company:'FM파트너스',workDays:'월·목',contact:'010-1234-5678',contractPeriod:'2026-01-01 ~ 2026-10-31',inspectionNotes:'출입문 확인'};
 const record={...item,id:item.id,staffId:'other',site,date:item.date,type:'정기',cycle:'주 2회',technician:'기사',answers:{'0-0':'B'},rating:'개선 필요',issues:'다른 사람의 지적사항',action:'청소',assignee:'',due:'',actionState:'',notes:'',photos:[],history:[]};
@@ -26,20 +26,22 @@ globalThis.fetch=async url=>{
  const path=String(url);
  if(path==='/api/recent-inspections/recent-1')return Response.json({record,inspectorName:item.inspectorName,revision:1,updated:item.updated});
  if(path.startsWith('/api/recent-inspections')){
-  count++;if(failed)throw TypeError('offline');
+  recentScope=path;count++;if(failed)throw TypeError('offline');
   const params=new URL(path,'https://example.test').searchParams;
   const scopedVersion=version+params.get('inspector')+params.get('q')+params.get('status')+params.get('from')+params.get('until');
   if(params.get('since')===scopedVersion)return Response.json({version:scopedVersion,unchanged:true});
-  const rows=[item].filter(row=>(!params.get('inspector')||row.inspectorId===params.get('inspector'))&&(!params.get('q')||row.siteName.includes(params.get('q')))&&(!params.get('status')||row.status===params.get('status')));
+  const rows=[item,{...item,id:'mine',modified:false,issueCount:0,rating:'양호',siteName:'내 점검 현장',inspectorId:'me',inspectorName:'내 이름'}].filter(row=>(!params.get('inspector')||row.inspectorId===params.get('inspector'))&&(!params.get('q')||row.siteName.includes(params.get('q')))&&(!params.get('status')||row.status===params.get('status')));
   return Response.json({items:rows,inspectors:[{id:'other',name:'다른 점검자'},{id:'me',name:'내 이름'}],version:scopedVersion,nextCursor:null});
  }
  throw Error('Unexpected request '+path);
 };
 const user={id:'me',name:'내 이름',username:'me',role:'inspector',active:true};
 try{
- const mounted=render(React.createElement(RecentInspections,{user,sites:[{...site,address:'현재 등록 주소'}],inspector:{id:'other',name:'다른 점검자'},onViewAll:()=>allOpened++}));
+ const mounted=render(React.createElement(RecentInspections,{user,sites:[{...site,address:'현재 등록 주소'}],onViewAll:()=>allOpened++}));
  const row=await screen.findByRole('button',{name:/다른 사람의 현장 · 다른 점검자/});
- assert(screen.getByText('수정됨'));assert(screen.getByText('다른 점검자님의 최근 점검'));assert(!screen.queryByText('최근 저장순'));assert(screen.getByText('개선 필요 · 지적 1건'));fireEvent.click(screen.getByRole('button',{name:'전체 기록'}));assert.equal(allOpened,1);
+ await screen.findByRole('button',{name:/내 점검 현장 · 내 이름/});
+ assert(!new URL(recentScope,'https://example.test').searchParams.get('inspector'),'Default recent feed must not filter by the selected inspector');assert(screen.getByText('전체 점검자'));
+ assert(screen.getByText('수정됨'));assert(screen.getByText('최근 점검'));assert(!screen.queryByText('최근 저장순'));assert(screen.getByText('개선 필요 · 지적 1건'));fireEvent.click(screen.getByRole('button',{name:'전체 기록'}));assert.equal(allOpened,1);
  fireEvent.click(row);
  const detail=await screen.findByRole('dialog');
  await within(detail).findByText('다른 사람의 지적사항');
@@ -54,13 +56,13 @@ try{
  await waitFor(()=>assert(!screen.queryByRole('dialog')));
  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,40));});
  assert.equal(scrollTarget,240);assert.equal(document.activeElement,row);
- fireEvent.click(screen.getByRole('button',{name:/다른 점검자님의 최근 점검/}));
+ fireEvent.click(screen.getByRole('button',{name:'최근 점검',exact:true}));
  assert.equal(localStorage.getItem('lucent-recent-collapsed:me'),'true');
  const before=count;await act(async()=>window.dispatchEvent(new Event('online')));assert.equal(count,before);
  mounted.unmount();
- const reopened=render(React.createElement(RecentInspections,{user,sites:[],inspector:{id:'other',name:'다른 점검자'}}));
- assert.equal(screen.getByRole('button',{name:/다른 점검자님의 최근 점검/}).getAttribute('aria-expanded'),'false');
- fireEvent.click(screen.getByRole('button',{name:/다른 점검자님의 최근 점검/}));
+ const reopened=render(React.createElement(RecentInspections,{user,sites:[]}));
+ assert.equal(screen.getByRole('button',{name:'최근 점검',exact:true}).getAttribute('aria-expanded'),'false');
+ fireEvent.click(screen.getByRole('button',{name:'최근 점검',exact:true}));
  await screen.findByRole('button',{name:/다른 사람의 현장 · 다른 점검자/});
  failed=true;fireEvent.click(screen.getByRole('button',{name:'최근 점검 새로고침'}));
  await screen.findByRole('alert');assert(screen.getByRole('button',{name:/다른 사람의 현장 · 다른 점검자/}));
@@ -72,7 +74,8 @@ try{
  await screen.findByRole('button',{name:/갱신된 현장 · 다른 점검자/});
  assert(screen.getByRole('heading',{name:'전체 점검 기록'}));
  fireEvent.change(screen.getByLabelText('점검자'),{target:{value:'me'}});
- await screen.findByText('조건에 맞는 점검 기록이 없습니다.');
+ await screen.findByRole('button',{name:/내 점검 현장 · 내 이름/});
+ assert(!screen.queryByRole('button',{name:/갱신된 현장 · 다른 점검자/}));
  fireEvent.change(screen.getByLabelText('점검자'),{target:{value:'other'}});
  await screen.findByRole('button',{name:/갱신된 현장 · 다른 점검자/});
  fireEvent.change(screen.getByLabelText('현장 검색'),{target:{value:'없는현장'}});
@@ -87,7 +90,7 @@ try{
  await screen.findByText('조건에 맞는 점검 기록이 없습니다.');
  archive.unmount();render(React.createElement(RecentInspections,{user,sites:[],mode:'all'}));
  assert.equal(screen.getByLabelText('상태').value,'draft');
- console.log('PASS: selected-inspector feed, separate full archive, server-scoped inspector/search/status filters, invalid period, reset and retained filter preferences');
+ console.log('PASS: all-inspector default feed, separate filtered archive, server-scoped inspector/search/status filters, invalid period, reset and retained filter preferences');
  console.log('PASS: shared recent list, modified labels, direct read-only viewing, saved/current site separation, close/scroll/focus return and per-account collapse persistence');
  console.log('PASS: collapsed feeds pause refresh; failed refresh preserves rows; returning online refreshes without losing the page');
 }finally{cleanup();dom.window.close();}
