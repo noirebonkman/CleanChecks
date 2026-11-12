@@ -36,10 +36,11 @@ export class CalendarEvents {
 
     async fetch(request: Request): Promise<Response> {
         if (request.method === 'POST') {
+            const notification = new URL(request.url).pathname === '/inspections-changed' ? 'inspections-changed' : 'calendar-changed';
             for (const socket of this.context.getWebSockets()) {
                 try {
                     if ((stateOf(socket)?.expiresAt || 0) <= Date.now()) socket.close(1008,'Session expired');
-                    else socket.send('calendar-changed');
+                    else socket.send(notification);
                 } catch {
                     // A disconnected viewer must not interrupt other viewers.
                 }
@@ -153,4 +154,9 @@ export async function publishCalendarChange(env: Environment) {
     } catch {
         // Schedule writes have already committed. The client can reconcile by fetching.
     }
+}
+
+export async function publishInspectionChange(env: Environment) {
+    try { await calendarEventHub(env)?.fetch(new Request('https://calendar.internal/inspections-changed',{method:'POST'})); }
+    catch { /* The write committed; a foreground refresh also reconciles the feed. */ }
 }

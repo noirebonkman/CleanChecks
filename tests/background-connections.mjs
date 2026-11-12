@@ -121,6 +121,24 @@ try {
     assert.equal(sockets.length, 2, 'Unmounted calendars must not reconnect');
     console.log('PASS: viewer/editor separation, hidden presence release, offline cleanup, immediate reconnect, foreground refresh and socket teardown');
 
+    function RecentConnection({enabled}) {
+        useCalendarLive(()=>refreshes++,null,'inspections-changed',enabled);
+        return null;
+    }
+    const recent = render(React.createElement(RecentConnection,{enabled:true}));
+    const recentSocket = sockets.at(-1);
+    await act(async()=>recentSocket.open());
+    const baseline=refreshes;
+    await act(async()=>recentSocket.onmessage({data:'calendar-changed'}));
+    assert.equal(refreshes,baseline);
+    await act(async()=>recentSocket.onmessage({data:'inspections-changed'}));
+    assert.equal(refreshes,baseline+1);
+    assert.equal(recentSocket.messages.at(-1),'viewing');
+    recent.rerender(React.createElement(RecentConnection,{enabled:false}));
+    assert.equal(recentSocket.readyState,3);
+    recent.unmount();
+    console.log('PASS: recent-inspection events refresh the shared feed without announcing an editor; collapsing disconnects it');
+
     const widgets = [];
     window.turnstile = { render(_, options) { widgets.push(options); return String(widgets.length); }, remove() {} };
     const tokens = [], errors = [];
