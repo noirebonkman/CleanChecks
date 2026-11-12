@@ -1,7 +1,7 @@
 /*! NanumSquare Neo © NAVER Corp. · https://hangeul.naver.com/font */
 @font-face {
     font-family:'NanumSquare Neo';
-    src:url('./assets/nanum-square-neo-variable.woff') format('woff');
+    src:url('./assets/nanum-square-neo-variable.woff2') format('woff2');
     font-style:normal;
     font-weight:300 900;
     font-display:swap;

@@ -141,9 +141,14 @@ try {
         assert.equal(data.user.name,'<img src=x onerror=alert(1)>');
         assert(!JSON.stringify(data).includes('password_hash'));
         const cookie = header.split(';')[0];
+        const restored = await call('access-check',{method:'POST',cookie,body:{challenge:'valid-access'}});
+        assert.equal(restored.status,200);
+        assert.equal((await restored.json()).user.id,data.user.id);
         await status('accounts',403,{method:'POST',cookie,headers:{Origin:'https://attacker.example'},body:{}});
         await status('logout',200,{method:'POST',cookie,body:{}});
         await status('session',401,{cookie});
+        const revoked = await call('access-check',{method:'POST',cookie,body:{challenge:'valid-access'}});
+        assert.equal((await revoked.json()).user,null);
     });
 } finally { await mf.dispose(); }
 

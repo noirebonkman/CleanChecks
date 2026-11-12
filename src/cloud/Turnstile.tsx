@@ -10,10 +10,15 @@ function loadChallenge() {
     if (window.turnstile) return Promise.resolve();
     if (!loader) loader = new Promise<void>((resolve, reject) => {
         const script = document.createElement('script');
+        const fail = () => {
+            clearTimeout(timer); loader = undefined; script.remove();
+            reject(Error('접속 확인을 불러오지 못했습니다. 다시 확인해 주세요.'));
+        };
+        const timer = setTimeout(fail,15000);
         script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
         script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => { loader = undefined; reject(Error('로봇 방지 확인을 불러오지 못했습니다.')); };
+        script.onload = () => { if (!window.turnstile) return fail(); clearTimeout(timer); resolve(); };
+        script.onerror = fail;
         document.head.append(script);
     });
     return loader;
@@ -34,5 +39,5 @@ export function Turnstile({ siteKey, action = 'login', onToken, onError }: { sit
         }).catch(error => { if (active) callbacks.current.onError(error.message); });
         return () => { active = false; if (widget) window.turnstile?.remove(widget); };
     }, [siteKey, action]);
-    return <div className="login-challenge" ref={element} aria-label="로봇 방지 확인"/>;
+    return <div className="login-challenge" ref={element} aria-hidden="true"/>;
 }

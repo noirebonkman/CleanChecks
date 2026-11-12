@@ -38,6 +38,7 @@
     background: var(--bg);
     color: var(--ink);
 }
+.login-shell.access-screen:has(.sign-in-card) { padding:clamp(.75rem,3vh,1.5rem); }
 .access-screen .login-card {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -46,8 +47,8 @@
 }
 .access-screen .sign-in-card {
     display: grid;
-    grid-template-columns: minmax(13rem,.78fr) minmax(0,1fr);
-    width: min(100%,48rem);
+    grid-template-columns: minmax(0,1fr);
+    width: min(100%,29rem);
     padding: 0;
     overflow: hidden;
 }
@@ -55,11 +56,11 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    justify-content: space-between;
-    gap: 2rem;
-    padding: clamp(1.2rem,4vw,2rem);
+    justify-content: flex-start;
+    gap: .55rem;
+    padding: .9rem 1.3rem;
     background: var(--bg);
-    border-inline-end: 1px solid var(--line);
+    border-block-end: 1px solid var(--line);
 }
 .sign-in-brandline,.workspace-title-line,.calendar-heading-line {
     display: flex;
@@ -69,12 +70,13 @@
     min-width: 0;
 }
 .sign-in-brandline { justify-content: space-between; }
-.sign-in-brandline .login-logo { width: 4.75rem; margin: 0; }
-.sign-in-brand-copy { display: grid; gap: .45rem; }
+.sign-in-brandline .login-logo { width: 4rem; margin: 0; }
+.sign-in-brand-copy { display:flex; flex-wrap:wrap; align-items:center; gap:.2rem .35rem; }
+.sign-in-brand-copy > svg { width:1rem; height:1rem; }
 .sign-in-brand-copy > svg,.sign-in-form .eyebrow { color: var(--accent); }
-.sign-in-brand-copy strong { font-size: 1.12rem; }
-.sign-in-brand-copy p { font-size: .82rem; }
-.sign-in-form { padding: clamp(1.1rem,4vw,2.25rem); min-width: 0; }
+.sign-in-brand-copy strong { font-size: .85rem; }
+.sign-in-brand-copy p { display:none; }
+.sign-in-form { padding: clamp(1rem,3vw,1.5rem); min-width: 0; }
 .sign-in-form .eyebrow { display: flex; align-items: center; gap: .35rem; }
 .sign-in-form > p:not(.eyebrow) { margin: .5rem 0 1.2rem; font-size: .9rem; }
 .sign-in-form form,.sign-in-form fieldset { gap: .9rem; }
@@ -192,12 +194,8 @@
     .access-screen .workspace-option:active:not(:disabled) { scale: .985; }
 }
 @media (max-width:45rem) {
-    .access-screen .sign-in-card { grid-template-columns: minmax(0,1fr); width: min(100%,29rem); }
-    .sign-in-brand { gap: .55rem; padding: .85rem 1.1rem; border-inline-end: 0; border-block-end: 1px solid var(--line); }
-    .sign-in-brand-copy { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .35rem; }
-    .sign-in-brand-copy > svg { width: 1rem; height: 1rem; }
+    .sign-in-brand { padding: .85rem 1.1rem; }
     .sign-in-brand-copy strong { font-size: .82rem; }
-    .sign-in-brand-copy p { display: none; }
     .workspace-title-line h1 { font-size: clamp(1.25rem,5vw,1.7rem); }
     .access-screen .workspace-card .workspace-option { min-height: 4.25rem; }
     .app .journal-list { padding: .65rem; }
