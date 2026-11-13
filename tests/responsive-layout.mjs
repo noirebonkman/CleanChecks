@@ -60,3 +60,14 @@ try {
  assert.equal(computed('.site-field-wide').gridColumn,'1 / -1');assert.equal(computed('.summary textarea').width,'100%');
  console.log('PASS: site/inspection notes remain full-width, multiline and contained after the global form cascade');
 }finally{formDom.window.close();}
+
+// Closing a utility panel must override its desktop/mobile layout rules.
+const finishCss=['src/cloud/field-calendar.css','src/interface-refinements.css'].map(file=>readFileSync(file,'utf8')).join('\n');
+assert.equal(transformSync(finishCss,{loader:'css',minify:true}).warnings.length,0);
+const finishDom=new JSDOM('<!doctype html><html><head><style>'+finishCss+'</style></head><body><div class="login-shell calendar-shell"><section class="calendar-panel calendar-filters" hidden></section><section class="calendar-panel calendar-options" hidden></section><div class="calendar-move-toast"><button>되돌리기</button></div></div></body></html>',{virtualConsole:new VirtualConsole()});
+try{
+ const style=selector=>finishDom.window.getComputedStyle(finishDom.window.document.querySelector(selector));
+ assert.equal(style('.calendar-filters').display,'none');assert.equal(style('.calendar-options').display,'none');
+ assert.equal(style('.calendar-move-toast').pointerEvents,'auto','Calendar undo must be clickable, not inherit a non-interactive toast');
+ console.log('PASS: hidden calendar panels remain closed after layout overrides; move undo is interactive');
+}finally{finishDom.window.close();}

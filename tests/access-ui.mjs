@@ -216,7 +216,8 @@ try{
   let state=await api.load();
   await api.save({...state,sites:[site],staff:[...state.staff,{id:'someone',name:'다른 점검자',salt:'',hash:'',active:true},{id:'empty-person',name:'기록 없는 점검자',salt:'',hash:'',active:true}],records:[{...base,id:'other-record'}, {...base,id:'my-record',staffId:activeUser.id,issues:'본인 내용'}]});
   api.saveWorkspace({person:'someone',recordId:'other-record',step:0,screen:'home'});
-  render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{}}));
+  let accountOpened=0;
+  render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{},onOpenAccount:()=>accountOpened++}));
   await screen.findByRole('heading',{name:'점검 기록'});
   assert(!screen.queryByRole('region',{name:'점검 기록 목록'}),'Saved inspector selection must not be restored on the home page');
   assert(!screen.queryByText(/님의 기록과 전체 최근 점검을 확인하세요/));
@@ -263,7 +264,9 @@ try{
   const sidebar=document.querySelector('aside');
   assert(!within(sidebar).queryByRole('button',{name:/기록 없는 점검자/}));
   assert.equal(!!screen.queryByRole('button',{name:'새 점검',exact:true}),write);
-  if(role==='owner')assert(!within(sidebar).queryByRole('button',{name:/현재 사용자/}));
+  if(role==='owner')assert(!within(sidebar.querySelector('.sidebar-scroll')).queryByRole('button',{name:/현재 사용자/}));
+  assert(sidebar.querySelector('.account-menu-button').textContent.includes('현재 사용자'));
+  fireEvent.click(sidebar.querySelector('.account-menu-button'));assert.equal(accountOpened,1,'Account settings must be accessible from the bottom sidebar identity');
   assert(!within(sidebar).queryByRole('button',{name:'점검자 추가',exact:true}));
   assert(!within(sidebar).queryByRole('button',{name:/점검자 삭제/}));
   assert.equal(!!within(sidebar).queryByRole('button',{name:/다른 점검자/}),viewAll);
@@ -273,7 +276,7 @@ try{
    fireEvent.click(within(sidebar.querySelector('.accordion.expanded')).getByRole('button',{name:/권한 검증 현장/}));
    await screen.findByRole('heading',{name:'바닥 및 출입구'});
    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,50));});
-   assert.equal(document.querySelector('.top-person').getAttribute('aria-label'),'로그인 계정: 현재 사용자');
+   assert(!document.querySelector('.top-person').textContent.includes('현재 사용자'),'Account identity must not be repeated in the top bar');
    assert(!screen.queryByRole('button',{name:'수정하기',exact:true}));
    assert.equal(!!screen.queryByRole('button',{name:'점검표 삭제',exact:true}),role==='owner');
    assert(screen.getAllByRole('button',{name:'A 양호'}).every(button=>button.disabled));
@@ -283,7 +286,7 @@ try{
   await screen.findByRole('heading',{name:/내 기기 데이터/});
   const settingsPage=document.querySelector('main > .server-settings');
   assert(settingsPage,'Settings must have one shared content column');
-  assert(settingsPage.contains(screen.getByRole('heading',{name:'계정 및 기록 저장'})));
+  assert(settingsPage.contains(screen.getByRole('heading',{name:'기록 저장'})));
   assert(settingsPage.querySelector('.settings-account > .account-sync'));
   assert(!document.querySelector('main > .cloud-settings'));
   assert(!document.querySelector('main > .page-heading'));

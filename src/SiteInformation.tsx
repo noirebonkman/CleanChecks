@@ -11,7 +11,7 @@ export function SiteInformation({ inspection, inspectorName, currentSite, childr
     const [feedback,setFeedback] = useState('');
     const differs = !!currentSite && JSON.stringify(currentSite) !== JSON.stringify(inspection.site);
     const site = latest && currentSite ? currentSite : inspection.site;
-    const phone = site.contact?.match(/\+?\d[\d\s()-]{6,}\d/)?.[0].replace(/[^\d+]/g,'');
+    const phone = (site.contactPhone || site.contact)?.match(/\+?\d[\d\s()-]{6,}\d/)?.[0].replace(/[^\d+]/g,'');
     return <div className="site-information">
         <header className="site-information-hero"><span>{siteCompany(site.company)}</span><h3>{site.name}</h3><p><MapPin size={16} aria-hidden="true"/>{knownValue(site.zone)}</p></header>
         {differs && <div className="site-source" role="group" aria-label="현장 정보 기준">
@@ -24,6 +24,8 @@ export function SiteInformation({ inspection, inspectorName, currentSite, childr
                 <div className="site-information-wide"><dt>상세주소</dt><dd>{knownValue(site.address)}</dd></div>
                 <div><dt>현장 연락처</dt><dd>{knownValue(site.contact)}</dd></div>
                 <div><dt>중요도</dt><dd>{knownValue(site.priority)}</dd></div>
+                <div><dt>현장 담당자</dt><dd>{knownValue(site.contactName)}</dd></div>
+                <div><dt>담당자 연락처</dt><dd>{knownValue(site.contactPhone)}</dd></div>
             </dl>
             <div className="site-information-actions">
                 {site.address?.trim() && <button className="secondary" type="button" onClick={async()=>{

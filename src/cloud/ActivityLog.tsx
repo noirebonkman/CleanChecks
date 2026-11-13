@@ -32,6 +32,10 @@ type ManagementDetail = {
     after?: PermissionOverrides;
     beforeRole?: ServerUser['role'];
     afterRole?: ServerUser['role'];
+    beforeName?: string;
+    afterName?: string;
+    siteBefore?: Record<string, unknown> | null;
+    siteAfter?: Record<string, unknown>;
 };
 type PersonalEvent = { at: string; action: string; target_id: string };
 type Scope = 'personal' | 'calendar' | 'management';
@@ -77,6 +81,8 @@ function ManagementEntry({ event, users }: { event: OwnerEvent<ManagementDetail>
             <small>{dateTime.format(new Date(event.at))} · {detail.actorName||name(event.actorId)}</small></summary>
         {detail.date&&<p>점검일시 {detail.date.replace('T',' ').slice(0,16)}</p>}
         {detail.reason && <p>사유 {detail.reason}</p>}
+        {detail.beforeName && detail.afterName && <p>이름 {detail.beforeName} → {detail.afterName}</p>}
+        {detail.siteAfter && <dl>{[...new Set([...Object.keys(detail.siteBefore || {}),...Object.keys(detail.siteAfter)])].filter(key => key !== 'id' && JSON.stringify(detail.siteBefore?.[key]) !== JSON.stringify(detail.siteAfter?.[key])).map(key => <div key={key}><dt>{({name:'현장명',zone:'지역',address:'주소',company:'구분',priority:'중요도',cycle:'근무형태',contractPeriod:'계약기간',workDays:'요일',contact:'현장 연락처',contactName:'담당자',contactPhone:'담당자 연락처',inspectionNotes:'특이사항',inactive:'사용 중지'} as Record<string,string>)[key] || key}</dt><dd>{String(detail.siteBefore?.[key] ?? '—')} → {String(detail.siteAfter?.[key] ?? '—')}</dd></div>)}</dl>}
         {detail.beforeRole && detail.afterRole && <p>등급 {roleName[detail.beforeRole]} → {roleName[detail.afterRole]} · 개인별 권한 초기화</p>}
         {before && after && <dl>{permissionKeys.map(key => <div key={key}><dt>{permissionLabels[key]}</dt><dd>{permission(before[key])} → {permission(after[key])}</dd></div>)}</dl>}
         {detail.recordCount !== undefined && <p>삭제 기록 {detail.recordCount}건</p>}

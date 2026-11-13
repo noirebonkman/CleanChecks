@@ -5,6 +5,8 @@ export const siteDetailFields = [
     { key: 'contractPeriod', label: '계약기간', maxLength: 100 },
     { key: 'workDays', label: '요일', maxLength: 100 },
     { key: 'contact', label: '현장 연락처', maxLength: 200 },
+    { key: 'contactName', label: '현장 담당자', maxLength: 100 },
+    { key: 'contactPhone', label: '담당자 연락처', maxLength: 100 },
     { key: 'inspectionNotes', label: '점검 구역·특이사항', maxLength: 500 },
 ] as const;
 
