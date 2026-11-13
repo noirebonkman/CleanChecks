@@ -1,4 +1,10 @@
 /* Shared finishing layer. Keep component layouts and print/export canvases independent. */
+.brand-wordmark { display:inline-block; max-inline-size:100%; font-size:1.15rem; font-weight:800; line-height:1.5; letter-spacing:-.035em; color:var(--ink,var(--text)); overflow-wrap:anywhere; }
+.app .brand .brand-wordmark { border:0; padding:0; margin:0; font-size:1rem; color:var(--ink); }
+.app .brand { flex-wrap:wrap; gap:.5rem .65rem; }
+.workspace-header .brand-wordmark { font-size:1.3rem; }
+.sign-in-brandline .brand-wordmark { font-size:1.1rem; }
+.access-verification > .brand-wordmark { margin-block-end:.5rem; }
 :is(.app,.login-shell) button { touch-action: manipulation; }
 :is(.app,.login-shell) :is(input,select,textarea,button) { font-family: inherit; }
 :is(.app,.login-shell) :is(input,select,textarea) { box-sizing:border-box; min-inline-size:0; max-inline-size:100%; }

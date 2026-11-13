@@ -5,7 +5,7 @@ import { ApiError, id } from './validation';
 
 type SavedInspection = Omit<Inspection, 'staffId'>;
 type Row = { id:string;account_id:string;payload:string;revision:number;updated_at:string;display_name:string };
-const joined = ' FROM inspections i JOIN accounts a ON a.id=i.account_id WHERE i.deleted=0 AND a.deleted_at IS NULL';
+const joined = ' FROM inspections i JOIN accounts a ON a.id=i.account_id JOIN account_profiles profile ON profile.account_id=a.id WHERE i.deleted=0 AND a.deleted_at IS NULL';
 
 // A separate, authenticated read-only feed. It never changes the personal record
 // list, writing permissions, or administrator access to management information.
@@ -16,7 +16,7 @@ export async function recentInspections(request: Request, env: Environment): Pro
     if (!match) throw new ApiError(404, '점검표를 찾지 못했습니다.');
     if (match[1]) {
         const recordId = id(match[1]);
-        const row = await env.DB.prepare('SELECT i.*,a.display_name' + joined + ' AND i.id=?').bind(recordId).first<Row>();
+        const row = await env.DB.prepare('SELECT i.*,profile.display_name' + joined + ' AND i.id=?').bind(recordId).first<Row>();
         if (!row) throw new ApiError(404, '삭제되었거나 열 수 없는 점검표입니다.');
         const record = await open<SavedInspection>(row.payload,env);
         if (match[2]) {
@@ -42,7 +42,7 @@ export async function recentInspections(request: Request, env: Environment): Pro
     const status = url.searchParams.get('status') || '';
     if (search.length>100 || [from,until].some(value=>value&&!/^\d{4}-\d{2}-\d{2}$/.test(value)) || (from&&until&&from>until) || !['','draft','complete'].includes(status))
         throw new ApiError(400,'검색 조건과 기간을 확인해 주세요.');
-    const marker = await env.DB.prepare('SELECT COUNT(*) AS count,COALESCE(SUM(i.revision),0) AS revisions,MAX(i.updated_at) AS latest FROM inspections i JOIN accounts a ON a.id=i.account_id WHERE a.deleted_at IS NULL').first();
+    const marker = await env.DB.prepare('SELECT COUNT(*) AS count,COALESCE(SUM(i.revision),0) AS revisions,MAX(i.updated_at) AS latest,(SELECT COALESCE(SUM(revision),0) FROM account_profiles) AS profiles FROM inspections i JOIN accounts a ON a.id=i.account_id WHERE a.deleted_at IS NULL').first();
     const version = await digest(JSON.stringify([marker,inspector,search,from,until,status]));
     if (url.searchParams.get('since') === version) return {unchanged:true,version};
     const cursor = url.searchParams.get('cursor');
@@ -59,7 +59,7 @@ export async function recentInspections(request: Request, env: Environment): Pro
     // Payloads stay encrypted at rest. Scan batches so search covers every record,
     // rather than filtering only the first downloaded page.
     while (matches.length<21) {
-        const rows = await env.DB.prepare('SELECT i.*,a.display_name' + joined +
+        const rows = await env.DB.prepare('SELECT i.*,profile.display_name' + joined +
             (inspector?' AND i.account_id=?':'') +
             (position?' AND (i.updated_at<? OR (i.updated_at=? AND i.id<?))':'') +
             ' ORDER BY i.updated_at DESC,i.id DESC LIMIT 100')
@@ -74,7 +74,7 @@ export async function recentInspections(request: Request, env: Environment): Pro
         if(rows.results.length<100 || matches.length>=21)break;
         const last=rows.results.at(-1)!;position=[last.updated_at,last.id];
     }
-    const people=await env.DB.prepare('SELECT DISTINCT a.id,a.display_name FROM accounts a JOIN inspections i ON i.account_id=a.id WHERE a.deleted_at IS NULL AND i.deleted=0').all<{id:string;display_name:string}>();
+    const people=await env.DB.prepare('SELECT DISTINCT a.id,profile.display_name FROM accounts a JOIN account_profiles profile ON profile.account_id=a.id JOIN inspections i ON i.account_id=a.id WHERE a.deleted_at IS NULL AND i.deleted=0').all<{id:string;display_name:string}>();
     const page=matches.slice(0,20),last=page.at(-1)?.row;
     return {version,inspectors:await Promise.all(people.results.map(async person=>({id:person.id,name:await open<string>(person.display_name,env)}))),
         items:await Promise.all(page.map(async({row,record})=>({id:row.id,inspectorId:row.account_id,

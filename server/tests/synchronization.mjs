@@ -1,3 +1,4 @@
+import { migrationStatements, applyMigration } from './migration-helpers.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync,mkdirSync,mkdtempSync,writeFileSync} from 'node:fs';
 import {createDecipheriv,randomBytes} from 'node:crypto';
@@ -16,10 +17,11 @@ const mf=new Miniflare({modules:true,scriptPath:'.test-work/worker-sync.mjs',com
 const realFetch=globalThis.fetch,realReader=globalThis.FileReader,origin='http://127.0.0.1:8787';
 try{
  const db=await mf.getD1Database('DB');
- for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
- for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
- for(const sql of readFileSync('migrations/0003_account_permissions.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
- for(const sql of readFileSync('migrations/0004_inspection_photos.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0001_initial.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0002_account_login.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0003_account_permissions.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0004_inspection_photos.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ await applyMigration(db,'0006_account_storage.sql');
  const send=(path,body)=>mf.dispatchFetch(origin+'/api/'+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
  assert.equal((await send('setup',{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'})).status,201);
  const ownerLogin=await send('login',{username:'ludmin',password:'Strong-password-123'}),ownerCookie=ownerLogin.headers.get('set-cookie').split(';')[0];
@@ -140,7 +142,7 @@ try{
  console.log('PASS: pre-upgrade local photos on completed records are uploaded by ordinary login synchronization');
  const snapshot=mkdtempSync(resolve('.test-work','photo-restore-'));
  const sqlPath=resolve(snapshot,'snapshot.sql'), encryptedPath=resolve(snapshot,'snapshot.encrypted'), restoredPath=resolve(snapshot,'restored.sql');
- const migrations=['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql'];
+ const migrations=['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql','0006_account_storage.sql'];
  const databaseSql=migrations.map(file=>readFileSync('migrations/'+file,'utf8')).join('\n');
  const entries=[];
  for(const table of ['accounts','inspections','inspection_photos']){

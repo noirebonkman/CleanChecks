@@ -1,3 +1,4 @@
+import { migrationStatements, applyMigration } from './migration-helpers.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync,mkdirSync} from 'node:fs';
 import {randomBytes} from 'node:crypto';
@@ -17,10 +18,11 @@ async function call(path,{method='GET',body,cookie,headers={}}={}){
 }
 async function expect(path,status,options){const response=await call(path,options);const body=await response.json();assert.equal(response.status,status,JSON.stringify(body));if(path==='accounts'&&status===201)await db.prepare('UPDATE accounts SET must_change_password=0,temporary_expires_at=NULL').run();return {response,body};}
 try{
- for(const sql of readFileSync('migrations/0001_initial.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
- for(const sql of readFileSync('migrations/0002_account_login.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
- for(const sql of readFileSync('migrations/0003_account_permissions.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
- for(const sql of readFileSync('migrations/0004_inspection_photos.sql','utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0001_initial.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0002_account_login.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0003_account_permissions.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const sql of migrationStatements(readFileSync('migrations/0004_inspection_photos.sql','utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
+ await applyMigration(db,'0006_account_storage.sql');
  await expect('records',401);
  await expect('setup',403,{method:'POST',body:{setupToken:'wrong'}});
  await expect('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'관리자',password:'Strong-password-123'}});

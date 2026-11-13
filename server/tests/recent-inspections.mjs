@@ -1,3 +1,4 @@
+import { migrationStatements, applyMigration } from './migration-helpers.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -19,8 +20,8 @@ async function call(path,status,{cookie,method='GET',body,binary=false}={}){
  return {data,response,cookie:response.headers.get('set-cookie')?.split(';')[0]};
 }
 try{
- for(const name of ['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql'])
-  for(const sql of readFileSync('migrations/'+name,'utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const name of ['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql','0006_account_storage.sql'])
+  for(const sql of migrationStatements(readFileSync('migrations/'+name,'utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
  await call('setup',201,{method:'POST',body:{setupToken:env.SETUP_TOKEN,username:'ludmin',name:'어드민',password}});
  const owner=await call('login',200,{method:'POST',body:{username:'ludmin',password}});
  const users=[];
@@ -77,6 +78,10 @@ try{
  assert(!changed.items.some(row=>row.id==='recent-24'));assert.notEqual(changed.version,first.version);
  await call('recent-inspections/recent-24',404,{cookie:users[1].cookie});
  await call('recent-inspections/recent-24/photos/saved-photo',404,{cookie:users[1].cookie});
+ const renamed='이름 변경 반영';
+ await db.prepare('UPDATE account_profiles SET display_name=? WHERE account_id=?').bind(await seal(renamed,env),users[0].data.user.id).run();
+ const renamedFeed=(await call('recent-inspections?since='+encodeURIComponent(changed.version),200,{cookie:users[1].cookie})).data;
+ assert.notEqual(renamedFeed.version,changed.version);assert(renamedFeed.items.some(row=>row.inspectorName===renamed));
  console.log('PASS: authenticated shared recent metadata, stable pagination, saved-time ordering, unchanged-version fast path and read-only detail/photos');
  console.log('PASS: shared viewing never grants foreign writes, deletions or admin-list access; deleted records/photos disappear and invalid cursors are rejected');
 }finally{await mf.dispose();}

@@ -1,3 +1,4 @@
+import {BrandName} from '../BrandName';
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import { readTheme } from '../preferences';
 import { APP_VERSION } from '../version';
@@ -138,7 +139,7 @@ export function LoginApplication() {
     if (configuration?.turnstileSiteKey && !entryVerified) {
         return <div className="login-shell access-screen" data-theme={readTheme()}>
             <main className="login-card access-verification" aria-labelledby="access-verification-title">
-                <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
+                <BrandName/>
                 <h1 id="access-verification-title">기록을 여는 중입니다</h1>
                 <p role="status">잠시만 기다려 주세요.</p>
                 <Turnstile key={entryVersion} siteKey={configuration.turnstileSiteKey} action="access"
@@ -147,13 +148,13 @@ export function LoginApplication() {
                     <button className="secondary" onClick={() => {
                         setEntryError(''); setEntryVersion(value => value+1);
                     }}>다시 확인</button></>}
-                <small>루센트 현장 관리 · v{APP_VERSION}</small>
+                <small>FM 파트너스 현장 관리 · v{APP_VERSION}</small>
                 <AccessPrivacyNotice/>
             </main>
         </div>;
     }
     if (user) {
-        if (accountOpen) return <Suspense fallback={<div className="login-shell access-screen" data-theme={readTheme()}><p role="status">계정 설정을 여는 중입니다…</p></div>}><AccountSettings user={user} onClose={() => setAccountOpen(false)} onChanged={async next => { const { prepareAccountWorkspace } = await import('./account-workspace'); await prepareAccountWorkspace(next); setUser(next); }}/></Suspense>;
+        if (accountOpen) return <Suspense fallback={<div className="login-shell access-screen" data-theme={readTheme()}><p role="status">계정 설정을 여는 중입니다…</p></div>}><AccountSettings user={user} onClose={() => setAccountOpen(false)}/></Suspense>;
         if (workspace === 'inspection' || settingsOpen)
             return <Suspense fallback={<div className="login-shell access-screen" data-theme={readTheme()}><p role="status">점검 화면을 여는 중입니다…</p></div>}><InspectionApplication key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}
                 onOpenAccount={() => setAccountOpen(true)} settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} onCloseSettings={inspect => {
@@ -171,12 +172,12 @@ export function LoginApplication() {
         <main className="login-card sign-in-card" aria-busy={loading || busy}>
             <div className="sign-in-brand">
                 <div className="sign-in-brandline">
-                    <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
+                    <BrandName/>
                     <span className="release-badge">v{APP_VERSION}</span>
                 </div>
                 <div className="sign-in-brand-copy">
                     <ClipboardCheck size={25} aria-hidden="true"/>
-                    <strong>루센트 현장 관리</strong>
+                    <strong>FM 파트너스 현장 관리</strong>
                     <p>현장 점검과 일정 관리</p>
                 </div>
             </div>
