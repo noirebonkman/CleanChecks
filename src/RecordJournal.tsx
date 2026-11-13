@@ -40,7 +40,7 @@ export function RecordJournal({canCreate=true,editableStaffId,records,name,query
   if(matchMedia('(max-width: 1100px)').matches)onOpen(record);
  };
  const heading=<header className="journal-heading">
-     <div><p className="eyebrow">현장점검</p><h1>점검 기록</h1><p className="journal-intro">{recent?(name?`${name}님의 기록과 전체 최근 점검을 확인하세요.`:'전체 최근 점검을 확인하세요.'):name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p></div>
+     <div><p className="eyebrow">현장점검</p><h1>점검 기록</h1><p className="journal-intro">{recent?'전체 최근 점검을 확인하세요.':name?`${name}님의 현장 점검을 확인하세요.`:'본인의 이름을 선택하고 점검을 시작하세요.'}</p></div>
      {canCreate&&<button className="primary" onClick={onNew}><Plus size={20}/>새 점검</button>}
     </header>;
  return <div className="content journal-home page-enter">

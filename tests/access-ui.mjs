@@ -215,9 +215,18 @@ try{
   await api.prepareAccountWorkspace(activeUser);
   let state=await api.load();
   await api.save({...state,sites:[site],staff:[...state.staff,{id:'someone',name:'다른 점검자',salt:'',hash:'',active:true},{id:'empty-person',name:'기록 없는 점검자',salt:'',hash:'',active:true}],records:[{...base,id:'other-record'}, {...base,id:'my-record',staffId:activeUser.id,issues:'본인 내용'}]});
+  api.saveWorkspace({person:'someone',recordId:'other-record',step:0,screen:'home'});
   render(React.createElement(api.App,{session:activeUser,onLogout:async()=>{}}));
   await screen.findByRole('heading',{name:'점검 기록'});
+  assert(!screen.queryByRole('region',{name:'점검 기록 목록'}),'Saved inspector selection must not be restored on the home page');
+  assert(!screen.queryByText(/님의 기록과 전체 최근 점검을 확인하세요/));
+  assert(screen.getByRole('region',{name:'최근 점검'}));
   if(role==='inspector'&&!scenario.custom){
+   fireEvent.click(screen.getByRole('button',{name:'새 점검',exact:true}));
+   const newInspection=await screen.findByRole('dialog',{name:'새 점검 시작'});
+   assert(within(newInspection).getByDisplayValue('현재 사용자'));
+   fireEvent.click(within(newInspection).getByRole('button',{name:'닫기',exact:true}));
+   await waitFor(()=>assert(!screen.queryByRole('dialog')));
    Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
    fireEvent.click(screen.getByRole('button',{name:'전체 기록',exact:true}));
    await screen.findByRole('heading',{name:'전체 점검 기록'});
@@ -260,6 +269,7 @@ try{
   assert.equal(!!within(sidebar).queryByRole('button',{name:/다른 점검자/}),viewAll);
   if(viewAll){
    fireEvent.click(within(sidebar).getByRole('button',{name:/다른 점검자/}));
+   assert(screen.getByRole('region',{name:'점검 기록 목록'}),'An explicit sidebar selection reveals the personal list');
    fireEvent.click(within(sidebar.querySelector('.accordion.expanded')).getByRole('button',{name:/권한 검증 현장/}));
    await screen.findByRole('heading',{name:'바닥 및 출입구'});
    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,50));});
