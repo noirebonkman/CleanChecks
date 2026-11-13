@@ -1,8 +1,9 @@
 import { resolvePermissions, type PermissionKey, type PermissionOverrides } from '../../src/access-control';
 import type { Account } from './bindings';
 import { ApiError } from './validation';
+import { accountFields, accountTables } from './account-storage';
 export const permissionColumns = 'p.view_all_records,p.write_own_records,p.manage_sites,p.manage_users,p.revision AS permission_revision';
-export const accountSelection = 'SELECT a.*,' + permissionColumns + ' FROM accounts a LEFT JOIN account_permissions p ON p.account_id=a.id';
+export const accountSelection = 'SELECT ' + accountFields + ',' + permissionColumns + accountTables + ' LEFT JOIN account_permissions p ON p.account_id=a.id';
 export function overridesFor(account: Account): PermissionOverrides {
     const decode = (value: number | null | undefined) => value === 1 ? true : value === 0 ? false : null;
     return { viewAllRecords: decode(account.view_all_records), writeOwnRecords: decode(account.write_own_records),

@@ -1,3 +1,4 @@
+import {BrandName} from '../BrandName';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CalendarDays, ClipboardCheck, LogOut, Settings, UserRound } from 'lucide-react';
 import { hasPermission } from '../access-control';
@@ -29,7 +30,7 @@ export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout, onSett
     return <div className="login-shell access-screen" data-theme={readTheme()}>
         <main className="login-card workspace-card" aria-labelledby="workspace-title">
             <header className="workspace-header">
-                <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
+                <BrandName/>
                 <div className="workspace-header-actions">
                     {onAccount && <button className="header-icon-button" aria-label="계정 설정" title="계정 설정" disabled={loggingOut} onClick={onAccount}><UserRound size={21}/></button>}
                     <button className="header-icon-button" aria-label="설정" title="설정" disabled={loggingOut} onClick={onSettings}><Settings size={21} aria-hidden="true"/></button>

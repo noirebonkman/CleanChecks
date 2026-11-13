@@ -1,3 +1,4 @@
+import { migrationStatements, applyMigration } from './migration-helpers.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -97,7 +98,7 @@ async function status(path, expected, options) {
 }
 try {
     for (const name of readdirSync('migrations').filter(name=>name.endsWith('.sql')).sort())
-        for (const sql of readFileSync('migrations/'+name,'utf8').split(';').filter(sql=>sql.trim()))
+        for (const sql of migrationStatements(readFileSync('migrations/'+name,'utf8')).filter(sql=>sql.trim()))
             await db.prepare(sql).run();
     await check('invalid bot tokens cannot exhaust the shared login allowance', async () => {
         await status('access-check', 403, {method:'POST',body:{challenge:'invalid-token'}});

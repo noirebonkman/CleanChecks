@@ -1,3 +1,4 @@
+import { accountFields, accountTables } from './account-storage';
 import { APP_VERSION } from '../../src/version';
 import { canManageCalendar, permissionKeys, type PermissionOverrides } from '../../src/access-control';
 import { accountSelection, permissionColumns, permissionsFor, overridesFor, requirePermission } from './account-permissions';
@@ -34,7 +35,7 @@ async function authenticate(request: Request, env: Environment): Promise<Account
     const token = sessionToken(request);
     if (!token || token.length > 200)
         throw new ApiError(401, '서버에 로그인해 주세요.');
-    const user = await env.DB.prepare('SELECT a.*,s.expires_at AS session_expires_at,' + permissionColumns + ' FROM accounts a JOIN sessions s ON s.account_id=a.id LEFT JOIN account_permissions p ON p.account_id=a.id WHERE s.token_hash=? AND s.expires_at>? AND a.active=1 AND a.deleted_at IS NULL')
+    const user = await env.DB.prepare('SELECT ' + accountFields + ',s.expires_at AS session_expires_at,' + permissionColumns + accountTables + ' JOIN sessions s ON s.account_id=a.id LEFT JOIN account_permissions p ON p.account_id=a.id WHERE s.token_hash=? AND s.expires_at>? AND a.active=1 AND a.deleted_at IS NULL')
         .bind(await digest(token), Date.now()).first<Account>();
     if (!user)
         throw new ApiError(401, '로그인이 만료되었습니다. 다시 로그인해 주세요.');
@@ -116,7 +117,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
             throw new ApiError(503, '서버 암호화 설정이 준비되지 않았습니다.');
         }
         await env.DB.prepare('SELECT id FROM installation WHERE id=1').first();
-        const owner = await env.DB.prepare('SELECT display_name FROM accounts WHERE username=?').bind('ludmin').first<{
+        const owner = await env.DB.prepare('SELECT profile.display_name FROM accounts a JOIN account_profiles profile ON profile.account_id=a.id WHERE a.username=?').bind('ludmin').first<{
             display_name: string;
         }>();
         if (owner) {
@@ -196,25 +197,14 @@ async function route(request: Request, env: Environment): Promise<Response> {
     }
     if (account.must_change_password && !(path === '/api/password' && method === 'POST'))
         throw new ApiError(403, '먼저 임시 비밀번호를 본인 비밀번호로 변경해 주세요.');
-    if ((path === '/api/account/verify' || path === '/api/account/profile') && method === 'POST') {
+    if (path === '/api/account/profile')
+        throw new ApiError(405, '계정 이름과 아이디는 변경할 수 없습니다.');
+    if (path === '/api/account/verify' && method === 'POST') {
         const body = await jsonBody(request);
-        const allowed = path.endsWith('/verify') ? ['current'] : ['current', 'name'];
-        if (Object.keys(body).some(key => !allowed.includes(key)))
-            throw new ApiError(400, '본인 이름만 변경할 수 있습니다.');
+        if (Object.keys(body).some(key => key !== 'current'))
+            throw new ApiError(400, '비밀번호 확인 요청을 확인해 주세요.');
         await confirmPassword(account, text(body.current, '현재 비밀번호', 128, true), env);
-        if (path.endsWith('/verify')) return send({ ok: true });
-        const name = text(body.name, '이름', 100, true).trim();
-        const before = await open<string>(account.display_name, env);
-        if (before !== name) {
-            const at = now();
-            await env.DB.batch([
-                env.DB.prepare('UPDATE accounts SET display_name=? WHERE id=?').bind(await seal(name, env), account.id),
-                audit(env, account.id, 'account-name-changed', account.id),
-                env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) VALUES(?,?,?,?,?,?)')
-                    .bind(crypto.randomUUID(), account.id, account.id, 'account-name-changed', await seal({ actorName: before, name, beforeName: before, afterName: name }, env), at),
-            ]);
-        }
-        return send({ user: { ...await publicAccount(account, env), name } });
+        return send({ ok: true });
     }
     if (path === '/api/password' && method === 'POST') {
         const body = await jsonBody(request);
@@ -222,7 +212,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         if (await verifyPassword(password(body.password), account.password_hash))
             throw new ApiError(400, '이전 비밀번호와 다른 비밀번호를 입력해 주세요.');
         await env.DB.batch([
-            env.DB.prepare('UPDATE accounts SET password_hash=?,must_change_password=0,temporary_expires_at=NULL WHERE id=?').bind(await passwordHash(password(body.password)), account.id),
+            env.DB.prepare('UPDATE account_credentials SET password_hash=?,must_change_password=0,temporary_expires_at=NULL WHERE account_id=?').bind(await passwordHash(password(body.password)), account.id),
             env.DB.prepare('DELETE FROM sessions WHERE account_id=?').bind(account.id), audit(env, account.id, 'password-changed', account.id)
         ]);
         return send({ ok: true }, 200, { 'Set-Cookie': cookie('', request, 0) });
@@ -288,7 +278,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const target = id(accountMatch[1]), body = await jsonBody(request);
         if (target === account.id)
             throw new ApiError(400, '본인 계정은 이 메뉴에서 변경할 수 없습니다.');
-        const targetAccount = await env.DB.prepare('SELECT * FROM accounts WHERE id=? AND deleted_at IS NULL').bind(target).first<Account>();
+        const targetAccount = await env.DB.prepare(accountSelection + ' WHERE a.id=? AND a.deleted_at IS NULL').bind(target).first<Account>();
         if (!targetAccount || targetAccount.role === 'owner' || (targetAccount.role === 'admin' && account.role !== 'owner'))
             throw new ApiError(404, '점검자 계정이 없습니다.');
         const reason = typeof body.reason === 'string' ? text(body.reason,'변경 사유',1000,true).trim() : undefined;
@@ -307,7 +297,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
             statements.push(env.DB.prepare('UPDATE accounts SET active=? WHERE id=?').bind(body.active ? 1 : 0,target),
                 audit(env,account.id,body.active ? 'account-enabled' : 'account-disabled',target));
         } else if (body.password) {
-            statements.push(env.DB.prepare('UPDATE accounts SET password_hash=?,must_change_password=1,temporary_expires_at=? WHERE id=?')
+            statements.push(env.DB.prepare('UPDATE account_credentials SET password_hash=?,must_change_password=1,temporary_expires_at=? WHERE account_id=?')
                 .bind(await passwordHash(password(body.password)),Date.now()+7*86400000,target),audit(env,account.id,'password-reset',target));
         } else throw new ApiError(400,'변경할 값을 확인해 주세요.');
         const detail = await seal({ reason,fields:Object.keys(body).filter(key=>key!=='password'),name:await open<string>(targetAccount.display_name,env),
@@ -475,7 +465,7 @@ async function route(request: Request, env: Environment): Promise<Response> {
             throw new ApiError(403, '최상위 운영자만 점검자를 삭제할 수 있습니다.');
         const target = id(ownerAccount[1]), body = await jsonBody(request), reason = text(body.reason, '삭제 사유', 1000, true);
         await confirmPassword(account,text(body.password,'어드민 비밀번호',128,true),env);
-        const person = await env.DB.prepare('SELECT * FROM accounts WHERE id=? AND deleted_at IS NULL').bind(target).first<Account>();
+        const person = await env.DB.prepare(accountSelection + ' WHERE a.id=? AND a.deleted_at IS NULL').bind(target).first<Account>();
         if (!person || person.role === 'owner' || person.id === account.id)
             throw new ApiError(400, '삭제할 수 없는 계정입니다.');
         const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM inspections WHERE account_id=? AND deleted=0').bind(target).first<{

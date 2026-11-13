@@ -1,3 +1,4 @@
+import { migrationStatements, applyMigration } from './migration-helpers.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -12,7 +13,7 @@ const mf = new Miniflare({ modules: true, scriptPath: '.test-work/permission-wor
     bindings: { APP_DATA_KEY: randomBytes(32).toString('base64'), SETUP_TOKEN: setupToken } });
 const origin = 'https://permission.example.workers.dev', db = await mf.getD1Database('DB');
 async function apply(name) {
-    for (const sql of readFileSync('migrations/' + name, 'utf8').split(';').filter(value => value.trim())) await db.prepare(sql).run();
+    for (const sql of migrationStatements(readFileSync('migrations/' + name,'utf8')).filter(value => value.trim())) await db.prepare(sql).run();
 }
 async function call(path, status, { cookie, method = 'GET', body } = {}) {
     const response = await mf.dispatchFetch(origin + '/api/' + path, { method,
@@ -52,6 +53,7 @@ try {
     await apply('0003_account_permissions.sql');
     await apply('0004_inspection_photos.sql');
     await apply('0005_calendar.sql');
+    await apply('0006_account_storage.sql');
     const owner = await login('ludmin', password);
     assert.deepEqual(owner.data.user.permissions, permissions(true, false, true, true));
     for (const [username, role] of [['worker', 'inspector'], ['manager', 'admin']]) {

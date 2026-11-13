@@ -14,32 +14,29 @@ await build({stdin:{contents:"export {AccountSettings} from './src/cloud/Account
 const {AccountSettings,FieldCalendar}=await import('../.test-work/interface-api.mjs');
 const React=await import('react'),{render,screen,fireEvent,waitFor,cleanup,act}=await import('@testing-library/react');
 const user={id:'me',username:'worker',name:'점검자',role:'admin',active:true};
-let requests=[],changed=null,logout=0;
+let requests=[],logout=0;
 window.addEventListener('cleanchecks:server-logout',()=>logout++);
 try{
  globalThis.fetch=async(url,options={})=>{
   const body=options.body?JSON.parse(options.body):{};requests.push({url,body});
   if(url==='/api/account/verify')return body.current==='RightPassword'?Response.json({ok:true}):Response.json({error:'비밀번호를 확인해 주세요.'},{status:403});
-  if(url==='/api/account/profile')return Response.json({user:{...user,name:body.name}});
   return Response.json({ok:true});
  };
- render(React.createElement(AccountSettings,{user,onClose(){},onChanged:value=>changed=value}));
+ render(React.createElement(AccountSettings,{user,onClose(){},}));
  assert(!screen.queryByLabelText('이름'));assert(!screen.queryByRole('button',{name:'로그아웃'}));
  fireEvent.change(screen.getByLabelText('현재 비밀번호'),{target:{value:'WrongPassword'}});
  fireEvent.click(screen.getByRole('button',{name:'계정 설정 열기'}));
  await screen.findByRole('alert');assert(!screen.queryByLabelText('이름'));
  fireEvent.change(screen.getByLabelText('현재 비밀번호'),{target:{value:'RightPassword'}});
  fireEvent.click(screen.getByRole('button',{name:'계정 설정 열기'}));
- await screen.findByLabelText('이름');assert(!screen.queryByLabelText('아이디'));assert(screen.getByText('worker'));
- fireEvent.change(screen.getByLabelText('이름'),{target:{value:'변경된 이름'}});fireEvent.click(screen.getByRole('button',{name:'이름 저장'}));
- await screen.findByRole('status');assert.equal(changed.name,'변경된 이름');assert.deepEqual(requests.at(-1).body,{current:'RightPassword',name:'변경된 이름'});
+ await screen.findByText('worker');assert(!screen.queryByLabelText('이름'));assert(!screen.queryByRole('button',{name:'이름 저장'}));assert(!screen.queryByLabelText('아이디'));
  fireEvent.change(screen.getByLabelText('새 비밀번호',{exact:true}),{target:{value:'ChangedPassword'}});
  fireEvent.change(screen.getByLabelText('새 비밀번호 확인'),{target:{value:'WrongConfirmation'}});
  const before=requests.length;fireEvent.click(screen.getByRole('button',{name:'변경 후 다시 로그인'}));
  await screen.findByText('새 비밀번호가 서로 다릅니다.');assert.equal(requests.length,before);
  fireEvent.change(screen.getByLabelText('새 비밀번호 확인'),{target:{value:'ChangedPassword'}});fireEvent.click(screen.getByRole('button',{name:'변경 후 다시 로그인'}));
  await waitFor(()=>assert.equal(logout,1));assert(!JSON.stringify({...localStorage}).includes('RightPassword'));
- cleanup();console.log('PASS: account page requires current password before opening; only name/password are editable; feedback, mismatch handling and logout work');
+ cleanup();console.log('PASS: account page requires current password before opening; name/username are read-only; password feedback, mismatch handling and logout work');
  const clock=new Date(),date=new Date(clock.getTime()-clock.getTimezoneOffset()*60000).toISOString().slice(0,10);
  const targetDate=new Date(date+'T12:00:00');targetDate.setDate(targetDate.getDate()+1);
  const tomorrow=`${targetDate.getFullYear()}-${String(targetDate.getMonth()+1).padStart(2,'0')}-${String(targetDate.getDate()).padStart(2,'0')}`;

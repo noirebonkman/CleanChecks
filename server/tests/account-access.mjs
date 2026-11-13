@@ -1,3 +1,4 @@
+import { migrationStatements, applyMigration } from './migration-helpers.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -15,7 +16,7 @@ async function call(path,status,{cookie,method='GET',body}={}) {
  const data=await response.json();assert.equal(response.status,status,JSON.stringify(data));return {data,cookie:response.headers.get('set-cookie')?.split(';')[0],header:response.headers.get('set-cookie')};
 }
 try{
- for(const name of ['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql'])for(const sql of readFileSync('migrations/'+name,'utf8').split(';').filter(value=>value.trim()))await db.prepare(sql).run();
+ for(const name of ['0001_initial.sql','0002_account_login.sql','0003_account_permissions.sql','0004_inspection_photos.sql','0006_account_storage.sql'])for(const sql of migrationStatements(readFileSync('migrations/'+name,'utf8')).filter(value=>value.trim()))await db.prepare(sql).run();
  assert((await call('auth-config',200)).data.setupRequired);
  await call('setup',400,{method:'POST',body:{setupToken,username:'ludmin',name:'어드민',password:'Nine12345'}});
  await call('setup',201,{method:'POST',body:{setupToken,username:'ludmin',name:'어드민',password:pass}});
@@ -43,15 +44,10 @@ try{
  await call('account/verify',401,{method:'POST',body:{current:chosen}});
  await call('account/verify',403,{method:'POST',cookie:worker.cookie,body:{current:'WrongPassword'}});
  await call('account/verify',200,{method:'POST',cookie:worker.cookie,body:{current:chosen}});
- await call('account/profile',400,{method:'POST',cookie:worker.cookie,body:{current:chosen,name:'변경 이름',role:'admin'}});
- await call('account/profile',400,{method:'POST',cookie:worker.cookie,body:{current:chosen,name:'변경 이름',username:'other'}});
- await call('account/profile',403,{method:'POST',cookie:worker.cookie,body:{current:'WrongPassword',name:'변경 이름'}});
- const changed=await call('account/profile',200,{method:'POST',cookie:worker.cookie,body:{current:chosen,name:'변경 이름'}});
- assert.equal(changed.data.user.name,'변경 이름');assert.equal(changed.data.user.role,'inspector');assert.equal(changed.data.user.username,'worker');
- assert.equal((await call('session',200,{cookie:worker.cookie})).data.user.name,'변경 이름');
- assert.notEqual((await db.prepare('SELECT display_name FROM accounts WHERE id=?').bind(worker.data.user.id).first()).display_name,'변경 이름');
- assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM owner_actions WHERE action='account-name-changed'").first()).n,1);
- console.log('PASS: account settings reauthenticates before name changes, preserves username/role, encrypts names and audits changes');
+ for(const method of ['POST','PUT','PATCH'])await call('account/profile',405,{method,cookie:worker.cookie,body:{current:chosen,name:'변경 이름'}});
+ assert.equal((await call('session',200,{cookie:worker.cookie})).data.user.name,'worker');
+ assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM owner_actions WHERE action='account-name-changed'").first()).n,0);
+ console.log('PASS: account settings verify passwords while all name/username change methods are blocked');
  const manager=await call('login',200,{method:'POST',body:{username:'manager',password:chosen}});
  const beforeProtectedChange=await db.prepare('SELECT password_hash,active FROM accounts WHERE id=?').bind(worker.data.user.id).first();
  for(const patch of [{password:temporary},{active:false},{active:true}])
