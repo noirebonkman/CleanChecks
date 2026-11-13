@@ -1,0 +1,60 @@
+/* Textareas require the same containment and theme as other form controls. */
+.app .modal textarea,
+.app .summary textarea {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 8rem;
+    height: auto;
+    margin-top: .5rem;
+    padding: .75rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    resize: vertical;
+}
+.app .modal .site-edit-form {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 16px;
+    min-width: 0;
+    margin-top: 8px;
+}
+.app .modal .site-edit-form > label { display: block; margin: 0; min-width: 0; line-height: 1.6; }
+.app .site-edit-form .site-field-wide,
+.app .site-edit-form > button,
+.app .site-edit-form > .form-error { grid-column: 1 / -1; }
+.app .modal .site-edit-form :is(input,select,textarea) {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.6;
+}
+.app .site-edit-form :is(input,select) { min-height: 46px; }
+.app .site-edit-form > button { min-height: 48px; margin-top: 0; }
+.app .modal:has(> .site-edit-form) { width: min(42rem,calc(100vw - 32px)); }
+@media(max-width:640px) {
+    .app .modal .site-edit-form { grid-template-columns: minmax(0,1fr); gap: 14px; }
+    .app .modal:has(> .site-edit-form) { width: 100%; max-width: 100%; padding: 18px 16px max(20px,env(safe-area-inset-bottom)); max-height: calc(100dvh - 16px); border-radius: 14px; }
+    .app .modal-overlay:has(.site-edit-form) { padding: 8px; }
+    .app .modal textarea,.app .summary textarea { min-height: 9rem; }
+}

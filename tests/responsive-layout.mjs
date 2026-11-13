@@ -50,3 +50,13 @@ try {
     assert.equal(computed('.recent-select').alignItems,'center');
     console.log('PASS: record list retains grid/left alignment, separate 44px delete control and vertically centered selection after the full CSS cascade');
 } finally { recordDom.window.close(); }
+
+const formCss=['src/form-fields.css',...files,'src/inspection-studio.css','src/workspace-surfaces.css'].map(file=>readFileSync(file,'utf8')).join('\n');
+const formDom=new JSDOM('<!doctype html><html><head><style>'+formCss+'</style></head><body><div class="app"><section class="modal"><form class="site-edit-form"><label class="site-field-wide">특이사항<textarea rows="5">첫 줄\n다음 줄</textarea></label><label>연락처<input></label></form></section><section class="summary"><label>특이사항<textarea>점검 내용</textarea></label></section></div></body></html>',{virtualConsole:new VirtualConsole()});
+try {
+ const computed=selector=>formDom.window.getComputedStyle(formDom.window.document.querySelector(selector));
+ assert.equal(computed('.modal textarea').display,'block');assert.equal(computed('.modal textarea').width,'100%');
+ assert.equal(computed('.modal textarea').boxSizing,'border-box');assert.equal(computed('.modal textarea').whiteSpace,'pre-wrap');
+ assert.equal(computed('.site-field-wide').gridColumn,'1 / -1');assert.equal(computed('.summary textarea').width,'100%');
+ console.log('PASS: site/inspection notes remain full-width, multiline and contained after the global form cascade');
+}finally{formDom.window.close();}

@@ -413,6 +413,16 @@ fireEvent.click(screen.getByRole('button',{name:'설정',exact:true}));fireEvent
 fireEvent.click(screen.getAllByRole('button',{name:'현장 관리',exact:true})[0]);await screen.findByRole('heading',{name:'현장 관리'});fireEvent.click(screen.getByRole('button',{name:'현장 추가',exact:true}));dialog=await screen.findByRole('dialog');
 for(const [field,value] of [['name','관리자 검증 현장'],['zone','검증 구역'],['address','검증 상세주소'],['cycle','주 2회']])fireEvent.change(dialog.querySelector(`[name="${field}"]`),{target:{value}});
 fireEvent.submit(dialog.querySelector('form'));await waitFor(()=>assert(!screen.queryByRole('dialog')));assert.equal((await api.load()).sites.length,2);assert.equal((await api.load()).sites.find(s=>s.name==='관리자 검증 현장').priority,'');
+const multilineSiteNotes="현장 특이사항 첫 줄\n출입문은 퇴실 후 잠금\n"+ '장문 확인 '.repeat(20);
+fireEvent.click(within(document.querySelector('.content')).getByRole('button',{name:/관리자 검증 현장/}));dialog=await screen.findByRole('dialog');
+const siteNotes=within(dialog).getByLabelText('점검 구역·특이사항');
+assert(siteNotes.closest('label').classList.contains('site-field-wide'));assert.equal(siteNotes.rows,5);
+fireEvent.change(siteNotes,{target:{value:multilineSiteNotes}});fireEvent.submit(dialog.querySelector('form'));
+await waitFor(()=>assert(!screen.queryByRole('dialog')));assert.equal((await api.load()).sites.find(site=>site.name==='관리자 검증 현장').inspectionNotes,multilineSiteNotes.trim());
+fireEvent.click(within(document.querySelector('.content')).getByRole('button',{name:/관리자 검증 현장/}));dialog=await screen.findByRole('dialog');
+assert.equal(within(dialog).getByLabelText('점검 구역·특이사항').value,multilineSiteNotes.trim());
+fireEvent.click(within(dialog).getByRole('button',{name:'닫기',exact:true}));await waitFor(()=>assert(!screen.queryByRole('dialog')));
+console.log('PASS: site notes retain multiline/long content across save and reopen, with a full-width editing field');
 const preservedRecord=structuredClone((await api.load()).records[0]);
 fireEvent.click(within(document.querySelector('.content')).getByRole('button',{name:/가상 현장/}));dialog=await screen.findByRole('dialog');fireEvent.click(within(dialog).getByRole('button',{name:'현장 삭제',exact:true}));await screen.findByText('현장을 삭제할까요?');dialog=screen.getByRole('dialog');fireEvent.click(within(dialog).getByRole('button',{name:'닫기',exact:true}));await waitFor(()=>assert(!screen.queryByRole('dialog')));assert.equal((await api.load()).sites.length,2);
 fireEvent.click(within(document.querySelector('.content')).getByRole('button',{name:/가상 현장/}));dialog=await screen.findByRole('dialog');fireEvent.click(within(dialog).getByRole('button',{name:'현장 삭제',exact:true}));await screen.findByText('현장을 삭제할까요?');dialog=screen.getByRole('dialog');fireEvent.submit(dialog.querySelector('form'));await waitFor(()=>assert(!screen.queryByRole('dialog')));
