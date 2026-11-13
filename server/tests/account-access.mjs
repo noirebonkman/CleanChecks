@@ -40,6 +40,18 @@ try{
  }
  console.log('PASS: session cookies without remember; temporary passwords block all work until changed and revoke old sessions');
  const worker=await call('login',200,{method:'POST',body:{username:'worker',password:chosen}});
+ await call('account/verify',401,{method:'POST',body:{current:chosen}});
+ await call('account/verify',403,{method:'POST',cookie:worker.cookie,body:{current:'WrongPassword'}});
+ await call('account/verify',200,{method:'POST',cookie:worker.cookie,body:{current:chosen}});
+ await call('account/profile',400,{method:'POST',cookie:worker.cookie,body:{current:chosen,name:'변경 이름',role:'admin'}});
+ await call('account/profile',400,{method:'POST',cookie:worker.cookie,body:{current:chosen,name:'변경 이름',username:'other'}});
+ await call('account/profile',403,{method:'POST',cookie:worker.cookie,body:{current:'WrongPassword',name:'변경 이름'}});
+ const changed=await call('account/profile',200,{method:'POST',cookie:worker.cookie,body:{current:chosen,name:'변경 이름'}});
+ assert.equal(changed.data.user.name,'변경 이름');assert.equal(changed.data.user.role,'inspector');assert.equal(changed.data.user.username,'worker');
+ assert.equal((await call('session',200,{cookie:worker.cookie})).data.user.name,'변경 이름');
+ assert.notEqual((await db.prepare('SELECT display_name FROM accounts WHERE id=?').bind(worker.data.user.id).first()).display_name,'변경 이름');
+ assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM owner_actions WHERE action='account-name-changed'").first()).n,1);
+ console.log('PASS: account settings reauthenticates before name changes, preserves username/role, encrypts names and audits changes');
  const manager=await call('login',200,{method:'POST',body:{username:'manager',password:chosen}});
  const beforeProtectedChange=await db.prepare('SELECT password_hash,active FROM accounts WHERE id=?').bind(worker.data.user.id).first();
  for(const patch of [{password:temporary},{active:false},{active:true}])
@@ -57,8 +69,12 @@ try{
  const site={id:'site',name:'현장',zone:'구역',address:'주소',priority:'',cycle:'',inactive:false};
  await call('sites/site',403,{method:'PUT',cookie:worker.cookie,body:{site,revision:0}});
  await call('sites/site',200,{method:'PUT',cookie:owner.cookie,body:{site,revision:0}});
- await call('sites/site',200,{method:'PUT',cookie:owner.cookie,body:{site:{...site,inactive:true},revision:1}});
+ await call('sites/site',200,{method:'PUT',cookie:owner.cookie,body:{site:{...site,inactive:true,contactName:'현장 책임자',contactPhone:'010-1234-5678'},revision:1}});
  assert((await call('sites',200,{cookie:worker.cookie})).data.sites[0].site.inactive);
+ assert.equal((await call('sites',200,{cookie:worker.cookie})).data.sites[0].site.contactName,'현장 책임자');
+ assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM owner_actions WHERE action='site-saved'").first()).n,2);
+ await call('sites/site',409,{method:'PUT',cookie:owner.cookie,body:{site,revision:1}});
+ assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM owner_actions WHERE action='site-saved'").first()).n,2,'A conflicting write must not create a false site history');
  const record={id:'record',site,date:'2026-10-30T12:00',type:'',cycle:'',technician:'',answers:{},rating:'',issues:'원문',action:'',assignee:'',due:'',actionState:'',notes:'',updated:new Date().toISOString(),photos:[],status:'draft',history:[]};
  await call('records/record',200,{method:'PUT',cookie:worker.cookie,body:{record,revision:0}});
  assert.equal((await call('records',200,{cookie:owner.cookie})).data.records.length,0);

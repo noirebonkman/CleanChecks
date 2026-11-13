@@ -1,0 +1,127 @@
+/* Shared finishing layer. Keep component layouts and print/export canvases independent. */
+:is(.app,.login-shell) button { touch-action: manipulation; }
+:is(.app,.login-shell) :is(input,select,textarea,button) { font-family: inherit; }
+:is(.app,.login-shell) :is(input,select,textarea) { box-sizing:border-box; min-inline-size:0; max-inline-size:100%; }
+:is(.app,.login-shell) :is(button,a,summary) { -webkit-tap-highlight-color:transparent; }
+:is(.app,.login-shell) :is(button,a,input,select,textarea,summary):focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+:is(.app,.login-shell) button > svg { flex-shrink:0; }
+.app :is(.content,.settings-account,.setting-card,.journal,.recent-inspections,.summary) { min-inline-size:0; }
+.app .content:not(.inspection-workspace) { padding-inline:clamp(.8rem,2.8vw,2rem); }
+.app .page-heading { gap:.8rem; margin-block-end:1.25rem; }
+.app .page-heading h1 { font-size:clamp(1.4rem,2.5vw,1.9rem); line-height:1.35; }
+.app .sidebar { border-inline-end:1px solid var(--line); }
+.app .side-bottom { padding-block-end:max(.75rem,env(safe-area-inset-bottom)); }
+.app .account-menu-button { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:.65rem; width:100%; min-height:3.5rem; padding:.7rem .8rem; text-align:left; border:1px solid var(--line); border-radius:.7rem; background:var(--surface); color:var(--ink); margin-block:.35rem .6rem; }
+.account-menu-button > span { display:grid; gap:.2rem; min-width:0; }
+.account-menu-button strong { font-size:.9rem; overflow-wrap:anywhere; }
+.account-menu-button small { color:var(--muted); font-size:.75rem; }
+.app .settings-tabs { gap:.4rem; padding:.35rem; border:1px solid var(--line); border-radius:.8rem; background:var(--bg); }
+.app .settings-tabs button { flex:1 1 auto; min-height:2.75rem; gap:.4rem; white-space:normal; padding:.55rem .7rem; border:1px solid transparent; }
+.app .settings-tabs button[aria-pressed=true] { background:var(--surface); border-color:var(--line); box-shadow:0 1px 3px #1020330a; }
+.app .server-settings .setting-card { margin:1rem 0; padding:1.1rem 1.25rem; }
+.app .settings-account > .cloud-settings { padding:1.1rem 1.25rem; }
+.app .setting-card h2 { line-height:1.5; }
+.app .setting-row { min-height:3rem; padding:.65rem .35rem; gap:.65rem; }
+.app .setting-row > svg:last-child { margin-inline-start:auto; }
+.app .user-grid-row { padding:.8rem; gap:.6rem; }
+.app .user-grid-row > * { min-width:0; }
+.app .user-grid-row button { min-height:2.75rem; }
+.app .user-role-select { width:100%; }
+.app .permission-row { gap:1rem; }
+.app .site-management-tools { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; margin-block:1rem; }
+.site-management-tools > button,.site-management-tools > .file-label { display:inline-flex; align-items:center; justify-content:center; gap:.45rem; min-height:2.75rem; margin:0; padding:.6rem .85rem; border:1px solid var(--line); border-radius:.6rem; background:var(--surface); color:var(--ink); cursor:pointer; font-size:.875rem; }
+.app .site-management-search { margin-block:1rem; }
+.app .records .record { min-width:0; text-align:left; gap:.8rem; padding:1rem; }
+.app .records .record > svg:last-child { flex-shrink:0; }
+.app .records .record small { display:block; line-height:1.7; }
+.app .records .record h3 { line-height:1.55; }
+.app .modal { max-block-size:calc(100dvh - 2rem); overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+.app .modal-title { gap:.65rem; }
+.app .modal-title h2 { line-height:1.5; }
+.app .modal :is(input,select,textarea) { scroll-margin-block:5rem; }
+.app .import-preview { max-block-size:45dvh; overflow:auto; overscroll-behavior:contain; }
+.app .import-site { padding:.8rem 0; border-block-end:1px solid var(--line); overflow-wrap:anywhere; }
+.app .site-edit-form .site-field-wide { min-width:0; }
+.app .site-edit-form input[type=tel] { direction:ltr; text-align:left; }
+.account-settings-screen { padding:clamp(.75rem,3vw,2rem); align-items:start; }
+.account-settings-screen .account-settings-card { width:min(100%,36rem); margin-block:clamp(0px,3vh,2rem); }
+.account-page-header { display:flex; align-items:center; gap:.8rem; margin-block-end:1.1rem; }
+.account-page-header h1 { font-size:1.5rem; }
+.account-page-header .eyebrow { margin:0 0 .15rem; }
+.account-settings-sections { display:grid; gap:1.4rem; }
+.account-settings-sections section + section { padding-block-start:1.2rem; border-block-start:1px solid var(--line); }
+.account-settings-sections h2 { display:flex; align-items:center; gap:.5rem; font-size:1rem; margin:0 0 1rem; }
+.account-settings-sections .hint { display:flex; align-items:start; gap:.35rem; margin:0; font-size:.8rem; color:var(--muted); line-height:1.65; }
+.account-settings-sections .hint svg { flex-shrink:0; margin-top:.15rem; }
+.account-identity-card { display:flex; align-items:center; gap:1rem; padding:1rem; border:1px solid var(--line); background:var(--bg); border-radius:.75rem; }
+.account-identity-card dl { display:grid; gap:.65rem; flex:1; margin:0; min-width:0; }
+.account-identity-card dl > div { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.4rem; }
+.account-identity-card dt { color:var(--muted); font-size:.8rem; }
+.account-identity-card dd { margin:0; font-weight:650; overflow-wrap:anywhere; }
+.calendar-shell .calendar-panel { padding:.85rem; background:var(--bg); }
+.calendar-shell .calendar-filters:not([hidden]) { display:grid; grid-template-columns:minmax(12rem,2fr) repeat(3,minmax(0,1fr)); gap:.65rem; }
+.calendar-shell .calendar-filters > * { min-width:0; }
+.calendar-shell .calendar-search { background:var(--surface); }
+.calendar-shell .calendar-select { background:var(--surface); }
+.calendar-shell .calendar-select select { max-width:100%; width:100%; font:inherit; }
+.calendar-shell .calendar-select > span { flex-shrink:0; white-space:nowrap; }
+.calendar-shell .calendar-options .calendar-actions { display:flex; flex-wrap:wrap; }
+.calendar-shell .calendar-options button { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; }
+.calendar-shell .calendar-side,.calendar-shell .calendar-panel { min-width:0; }
+.login-shell.calendar-shell .calendar-panel[hidden] { display:none; }
+.calendar-shell .calendar-move-toast { display:flex; align-items:center; flex-wrap:wrap; gap:.6rem 1rem; max-inline-size:calc(100% - 1.5rem); pointer-events:auto; }
+.calendar-shell .calendar-move-toast > span { flex:1 1 10rem; min-width:0; overflow-wrap:anywhere; }
+.calendar-shell .calendar-move-toast > button { min-height:2.75rem; flex-shrink:0; color:inherit; background:transparent; border-color:currentColor; font-weight:700; }
+@media (hover:hover) and (prefers-reduced-motion:no-preference) {
+    :is(.app,.login-shell) button { transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease; }
+    .app .account-menu-button:hover,.app .site-management-tools > :hover { background:var(--soft); border-color:var(--accent); }
+}
+@media (prefers-reduced-motion:no-preference) {
+    .account-settings-screen .form-error { animation:shake .3s ease; }
+}
+@media (max-width:64rem) {
+    .calendar-shell .calendar-filters:not([hidden]) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .calendar-shell .calendar-search { grid-column:1 / -1; }
+}
+@media (max-width:40rem) {
+    .app .content:not(.inspection-workspace) { padding-inline:.85rem; }
+    .app .server-settings { padding-block:1.1rem 2rem; }
+    .app .page-heading { align-items:flex-start; }
+    .app .page-heading h1 { font-size:1.4rem; }
+    .app .site-management-tools > * { flex:1 1 8rem; }
+    .app .site-management-tools > .primary { flex-basis:100%; }
+    .app .user-grid-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:.7rem; }
+    .app .user-grid-row > :nth-child(1) { grid-column:auto; }
+    .app .user-grid-row > :nth-child(2) { text-align:right; }
+    .app .user-grid-row > :last-child { justify-self:end; }
+    .app .permission-row { grid-template-columns:minmax(0,1fr); }
+    .app .theme-options { gap:.45rem; }
+    .app .theme-options button { padding:.65rem .3rem; gap:.35rem; }
+    .app .summary .ratings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; }
+    .app .summary .ratings button { min-width:0; min-height:2.75rem; white-space:normal; }
+    .app .modal { max-block-size:calc(100dvh - 1rem); padding:1rem; border-radius:1rem; }
+    .app .modal-overlay { padding:max(.5rem,env(safe-area-inset-top)) .5rem max(.5rem,env(safe-area-inset-bottom)); }
+    .app .site-information-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .app .topbar { gap:.5rem; padding-inline:.85rem; }
+    .app .settings-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .calendar-shell .calendar-toolbar { gap:.65rem; }
+    .calendar-shell .calendar-utilities { margin-inline-start:auto; }
+    .calendar-shell .calendar-options:not([hidden]) { display:grid; grid-template-columns:minmax(0,1fr); }
+    .calendar-shell .calendar-options .calendar-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .calendar-shell .calendar-options .calendar-actions > button { width:100%; white-space:normal; }
+    .calendar-shell .calendar-select input { min-width:0; max-width:100%; }
+}
+@media (max-width:24rem) {
+    .calendar-shell .calendar-filters:not([hidden]) { grid-template-columns:minmax(0,1fr); }
+    .app .settings-tabs { grid-template-columns:minmax(0,1fr); }
+    .app .records .record { padding:.8rem; }
+    .app .site-information-grid { grid-template-columns:minmax(0,1fr); }
+    .app .theme-options button { flex-direction:column; }
+}
+@media (max-height:32rem) and (orientation:landscape) {
+    .login-shell.access-screen { align-items:start; }
+    .app .modal { max-block-size:calc(100dvh - 1rem); }
+}
+@media (prefers-reduced-motion:reduce) {
+    :is(.app,.login-shell) :is(button,a,input,select,textarea) { transition:none; }
+}

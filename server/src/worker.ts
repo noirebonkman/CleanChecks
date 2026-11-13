@@ -196,6 +196,26 @@ async function route(request: Request, env: Environment): Promise<Response> {
     }
     if (account.must_change_password && !(path === '/api/password' && method === 'POST'))
         throw new ApiError(403, '먼저 임시 비밀번호를 본인 비밀번호로 변경해 주세요.');
+    if ((path === '/api/account/verify' || path === '/api/account/profile') && method === 'POST') {
+        const body = await jsonBody(request);
+        const allowed = path.endsWith('/verify') ? ['current'] : ['current', 'name'];
+        if (Object.keys(body).some(key => !allowed.includes(key)))
+            throw new ApiError(400, '본인 이름만 변경할 수 있습니다.');
+        await confirmPassword(account, text(body.current, '현재 비밀번호', 128, true), env);
+        if (path.endsWith('/verify')) return send({ ok: true });
+        const name = text(body.name, '이름', 100, true).trim();
+        const before = await open<string>(account.display_name, env);
+        if (before !== name) {
+            const at = now();
+            await env.DB.batch([
+                env.DB.prepare('UPDATE accounts SET display_name=? WHERE id=?').bind(await seal(name, env), account.id),
+                audit(env, account.id, 'account-name-changed', account.id),
+                env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) VALUES(?,?,?,?,?,?)')
+                    .bind(crypto.randomUUID(), account.id, account.id, 'account-name-changed', await seal({ actorName: before, name, beforeName: before, afterName: name }, env), at),
+            ]);
+        }
+        return send({ user: { ...await publicAccount(account, env), name } });
+    }
     if (path === '/api/password' && method === 'POST') {
         const body = await jsonBody(request);
         await confirmPassword(account,text(body.current,'현재 비밀번호',128,true),env);
@@ -337,11 +357,16 @@ async function route(request: Request, env: Environment): Promise<Response> {
         const body = await jsonBody(request), value = site(body.site), expected = revision(body.revision), operation = crypto.randomUUID(), at = now();
         if (value.id !== siteMatch[1])
             throw new ApiError(400, '현장 식별번호가 다릅니다.');
+        const previous = await env.DB.prepare('SELECT payload FROM sites WHERE id=? AND revision=?').bind(value.id, expected).first<{payload:string}>();
+        const siteDetail = await seal({ actorName: await open<string>(account.display_name, env), name: value.name,
+            siteBefore: previous ? await open(previous.payload, env) : null, siteAfter: value }, env);
         const result = await env.DB.batch([
             expected === 0
                 ? env.DB.prepare('INSERT INTO sites(id,payload,revision,operation_id,updated_at) VALUES(?,?,1,?,?) ON CONFLICT(id) DO NOTHING').bind(value.id, await seal(value, env), operation, at)
                 : env.DB.prepare('UPDATE sites SET payload=?,revision=revision+1,operation_id=?,updated_at=? WHERE id=? AND revision=?').bind(await seal(value, env), operation, at, value.id, expected),
             env.DB.prepare('INSERT INTO audit SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM sites WHERE id=? AND operation_id=?)').bind(crypto.randomUUID(), account.id, 'site-saved', value.id, at, value.id, operation),
+            env.DB.prepare('INSERT INTO owner_actions(id,actor_id,target_id,action,detail,at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM sites WHERE id=? AND operation_id=?)')
+                .bind(crypto.randomUUID(), account.id, value.id, 'site-saved', siteDetail, at, value.id, operation),
         ]);
         if (result[0].meta.changes !== 1)
             throw new ApiError(409, '현장이 다른 기기에서 변경되었습니다.');

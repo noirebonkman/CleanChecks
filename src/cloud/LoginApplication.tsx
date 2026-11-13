@@ -10,6 +10,7 @@ import './login-and-access.css';
 
 const FieldCalendar = lazy(() => import('./FieldCalendar').then(module => ({ default:module.FieldCalendar })));
 const InspectionApplication = lazy(() => import('../App'));
+const AccountSettings = lazy(() => import('./AccountSettings').then(module => ({ default: module.AccountSettings })));
 type Session = { user:ServerUser; expiresAt?:number };
 
 type Configuration = { setupRequired: boolean; turnstileSiteKey: string };
@@ -23,6 +24,7 @@ function AccessPrivacyNotice() {
 export function LoginApplication() {
     const [user, setUser] = useState<ServerUser | null>(null);
     const [workspace, setWorkspace] = useState<'menu' | 'inspection' | 'calendar'>('menu');
+    const [accountOpen, setAccountOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [temporaryUser, setTemporaryUser] = useState<ServerUser | null>(null);
     const [configuration, setConfiguration] = useState<Configuration | null>(null);
@@ -45,7 +47,7 @@ export function LoginApplication() {
     };
     const failChallenge = (message: string) => { setToken(''); setChallengeError(message); };
     const challengeBlocked = !temporaryUser && !!configuration?.turnstileSiteKey && (!token || !!challengeError);
-    const clear = () => { setUser(null); setWorkspace('menu'); setSettingsOpen(false); setTemporaryUser(null); setError(''); resetChallenge(); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
+    const clear = () => { setUser(null); setWorkspace('menu'); setSettingsOpen(false); setAccountOpen(false); setTemporaryUser(null); setError(''); resetChallenge(); setMessage('다시 로그인해 주세요. 작성한 내용은 해당 계정에 보존됩니다.'); };
     const enter = async (next: ServerUser, expiry?: number) => {
         expiresAt.current = typeof expiry === 'number' ? expiry : null;
         if (next.mustChangePassword) { setTemporaryUser(next); return; }
@@ -151,17 +153,18 @@ export function LoginApplication() {
         </div>;
     }
     if (user) {
+        if (accountOpen) return <Suspense fallback={<div className="login-shell access-screen" data-theme={readTheme()}><p role="status">계정 설정을 여는 중입니다…</p></div>}><AccountSettings user={user} onClose={() => setAccountOpen(false)} onChanged={async next => { const { prepareAccountWorkspace } = await import('./account-workspace'); await prepareAccountWorkspace(next); setUser(next); }}/></Suspense>;
         if (workspace === 'inspection' || settingsOpen)
             return <Suspense fallback={<div className="login-shell access-screen" data-theme={readTheme()}><p role="status">점검 화면을 여는 중입니다…</p></div>}><InspectionApplication key={user.id} session={user} onLogout={logout} onWorkspaceMenu={() => setWorkspace('menu')}
-                settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} onCloseSettings={inspect => {
+                onOpenAccount={() => setAccountOpen(true)} settingsOpen={settingsOpen} onOpenSettings={() => setSettingsOpen(true)} onCloseSettings={inspect => {
                     if (inspect) setWorkspace('inspection');
                     setSettingsOpen(false);
                 }}/></Suspense>;
         if (workspace === 'calendar')
             return <Suspense fallback={<div className="login-shell" data-theme={readTheme()}><p role="status">캘린더를 여는 중입니다…</p></div>}>
-                <FieldCalendar user={user} onMenu={() => setWorkspace('menu')} onLogout={logout} onSettings={() => setSettingsOpen(true)}/>
+                <FieldCalendar onAccount={() => setAccountOpen(true)} user={user} onMenu={() => setWorkspace('menu')} onLogout={logout} onSettings={() => setSettingsOpen(true)}/>
             </Suspense>;
-        return <WorkspaceMenu user={user} onInspection={() => setWorkspace('inspection')}
+        return <WorkspaceMenu onAccount={() => setAccountOpen(true)} user={user} onInspection={() => setWorkspace('inspection')}
             onCalendar={() => setWorkspace('calendar')} onLogout={logout} onSettings={() => setSettingsOpen(true)}/>;
     }
     return <div className="login-shell access-screen" data-theme={readTheme()}>

@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, CalendarDays, ClipboardCheck, LogOut, Settings } from 'lucide-react';
+import { ArrowRight, CalendarDays, ClipboardCheck, LogOut, Settings, UserRound } from 'lucide-react';
 import { hasPermission } from '../access-control';
 import { readTheme } from '../preferences';
 import { APP_VERSION } from '../version';
 import type { ServerUser } from './client';
 
-export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout, onSettings }: {
+export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout, onSettings, onAccount }: {
     user: ServerUser;
     onInspection: () => void;
     onCalendar: () => void;
     onLogout: () => Promise<void>;
     onSettings: () => void;
+    onAccount?: () => void;
 }) {
     const heading = useRef<HTMLHeadingElement>(null);
     const [loggingOut, setLoggingOut] = useState(false);
@@ -30,6 +31,7 @@ export function WorkspaceMenu({ user, onInspection, onCalendar, onLogout, onSett
             <header className="workspace-header">
                 <img className="login-logo" src="./logo-black.svg" alt="루센트"/>
                 <div className="workspace-header-actions">
+                    {onAccount && <button className="header-icon-button" aria-label="계정 설정" title="계정 설정" disabled={loggingOut} onClick={onAccount}><UserRound size={21}/></button>}
                     <button className="header-icon-button" aria-label="설정" title="설정" disabled={loggingOut} onClick={onSettings}><Settings size={21} aria-hidden="true"/></button>
                     <button className="header-icon-button" aria-label="로그아웃" title="로그아웃" disabled={loggingOut} onClick={() => void logout()}><LogOut size={21} aria-hidden="true"/></button>
                 </div>

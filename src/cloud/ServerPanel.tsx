@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import { hasPermission } from '../access-control';
-import { UserManagement, roleName } from './UserManagement';
+import { UserManagement } from './UserManagement';
 import { useEffect, useRef, useState } from 'react';
 import type { State } from '../inspection-model';
 import { post, request, type ServerUser } from './client';
@@ -85,14 +85,11 @@ export function ServerPanel({ user, visible, data, getState, save, settingsTarge
         {visible && section === 'users' && hasPermission(user,'manageUsers') && <UserManagement user={user}/>}
         {visible && section !== 'users' && <section className="setting-card cloud-settings">
             {section === 'general' && <>
-            <h2>계정 및 기록 저장</h2><p><strong>{user.name}</strong> · {user.username} · {roleName[user.role]}</p>
+            <h2>기록 저장</h2>
             <p className="hint">점검 내용과 사진은 서버에 저장됩니다. 전송 대기 중인 내용은 해당 기기에 임시 보관합니다.</p>
             {error && <p className="form-error" role="alert">{error}</p>}
             {conflicts.map(id => <div key={id} className="cloud-record"><h3>동시 수정: {data.records.find(record => record.id === id)?.site.name || id}</h3><p>서버와 이 기기에서 모두 수정했습니다. 유지할 내용을 선택하세요.</p>{(['server', 'device'] as const).filter(choice => choice === 'server' || hasPermission(user, 'writeOwnRecords')).map(choice => <button key={choice} disabled={busy} onClick={() => void run(async () => { await resolveCloudConflict(id, choice, user, () => access.current.getState(), next => access.current.save(next)); setConflicts(value => value.filter(item => item !== id)); setTick(value => value + 1); })}>{choice === 'server' ? '서버 내용 유지' : '이 기기 내용 유지'}</button>)}</div>)}
-            <details><summary>내 비밀번호 변경</summary><form className="cloud-form" onSubmit={event => {
-                event.preventDefault(); const fields = new FormData(event.currentTarget);
-                void run(async () => { if (fields.get('password') !== fields.get('confirm')) throw Error('새 비밀번호가 서로 다릅니다.'); await post('password', { current: fields.get('current'), password: fields.get('password') }); window.dispatchEvent(new Event('cleanchecks:server-logout')); });
-            }}><label>현재 비밀번호<input name="current" type="password" autoComplete="current-password" required/></label><label>새 비밀번호<input name="password" type="password" autoComplete="new-password" minLength={10} maxLength={128} placeholder="10자 이상" required/></label><label>새 비밀번호 확인<input name="confirm" type="password" autoComplete="new-password" minLength={10} required/></label><button disabled={busy}>변경 후 다시 로그인</button></form></details>
+
             </>}
             {section === 'owner' && user.role === 'owner' && <>
                 <h2>어드민 전용 메뉴</h2><OwnerRecordTools/>

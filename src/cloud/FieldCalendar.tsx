@@ -25,7 +25,7 @@ const monthLabel = (month: string) => month.slice(0,4) + '년 ' + Number(month.s
 const dayLabel = (day: string) => Number(day.slice(5,7)) + '월 ' + Number(day.slice(8)) + '일';
 const presenceKey = (visit: Pick<Visit,'id'|'occurrenceDate'>) => visit.id + '@' + visit.occurrenceDate;
 
-export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: ServerUser; onMenu: () => void; onLogout: () => Promise<void>; onSettings?: () => void }) {
+export function FieldCalendar({ user, onMenu, onLogout, onSettings, onAccount }: { user: ServerUser; onMenu: () => void; onLogout: () => Promise<void>; onSettings?: () => void; onAccount?: () => void }) {
     const canEdit = canManageCalendar(user);
     const mayWrite = useRef(canEdit);
     useLayoutEffect(() => {
@@ -60,6 +60,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     const [pendingMove, setPendingMove] = useState<SavedSchedule | null>(null);
     const [arrival, setArrival] = useState<{id:string; date:string} | null>(null);
     const [moveMessage, setMoveMessage] = useState<{text:string; failed?:boolean} | null>(null);
+    const [undoMove, setUndoMove] = useState<SavedSchedule | null>(null);
     const [moveSelection, setMoveSelection] = useState<Visit | null>(null);
     const [dragSource, setDragSource] = useState<Visit | null>(null);
     const moveInFlight = useRef(false);
@@ -98,7 +99,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
     }, [arrival]);
     useEffect(() => {
         if (!moveMessage) return;
-        const timer = window.setTimeout(() => setMoveMessage(null),moveMessage.failed ? 6500 : 3200);
+        const timer = window.setTimeout(() => { setMoveMessage(null); setUndoMove(null); },moveMessage.failed ? 6500 : 10000);
         return () => window.clearTimeout(timer);
     }, [moveMessage]);
     useEffect(() => {
@@ -241,6 +242,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
             if (current.some(row => row.id === value.id && row.revision > result.revision)) return current;
             return [...current.filter(row => row.id !== value.id), {...(result.schedule || value),revision:result.revision}];
         });
+        return result.revision;
     }
     async function save(value: SavedSchedule, cutoff = '') {
         await persistSchedule(value,cutoff);
@@ -261,8 +263,10 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
         setArrival({id:next.id,date});
         selectDay(date);
         setMoveMessage(null);
+        setUndoMove(null);
         try {
-            await persistSchedule(next);
+            const revision = await persistSchedule(next);
+            setUndoMove({...next, date:visit.occurrenceDate, revision});
             setMoveMessage({text:dayLabel(date) + '로 옮겼습니다.' + (overlaps.length ? ' 같은 담당자의 시간이 겹칩니다.' : '')});
         } catch (cause) {
             setArrival({id:visit.id,date:visit.occurrenceDate});
@@ -274,6 +278,20 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
             setPendingMove(null);
             refresh(value => value + 1);
         }
+    }
+    async function undoCalendarMove() {
+        if (!undoMove || !mayWrite.current || moveInFlight.current) return;
+        const value = undoMove;
+        moveInFlight.current = true;
+        setUndoMove(null);
+        try {
+            await persistSchedule(value);
+            setArrival({id:value.id,date:value.date});
+            goMonth(value.date.slice(0,7)); selectDay(value.date);
+            setMoveMessage({text:'이동을 취소하고 원래 날짜로 되돌렸습니다.'});
+        } catch (cause) {
+            setMoveMessage({failed:true,text:'되돌리지 못했습니다. '+(cause instanceof Error ? cause.message : '최신 일정을 확인해 주세요.')});
+        } finally { moveInFlight.current = false; refresh(value=>value+1); }
     }
     function startPointerDrag(event: PointerEvent<HTMLButtonElement>, visit: Visit) {
         draggedHandle.current = null;
@@ -406,6 +424,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
                     <button disabled={!ready || working || !!pendingMove} onClick={() => download('ics')}><Download size={16} aria-hidden="true"/>ICS 저장</button>
                 </div>
                 <label className="calendar-reminder"><input type="checkbox" checked={reminder} onChange={event => setReminder(event.target.checked)}/> ICS에 시작 1시간 전 알림 포함</label>
+                {onAccount && <button onClick={onAccount}>계정 설정</button>}
                 <button className="calendar-option-logout" disabled={working} onClick={() => void act(onLogout)}><LogOut size={16} aria-hidden="true"/>로그아웃</button>
             </section>
             <section id="calendar-filter-panel" className="calendar-panel calendar-filters" aria-label="일정 필터"
@@ -540,7 +559,7 @@ export function FieldCalendar({ user, onMenu, onLogout, onSettings }: { user: Se
             <div className="calendar-legend">{workKinds.map((label,index) => <span key={label} data-kind={index}>{label}</span>)}
                 <small>엑셀과 이미지는 선택한 달의 전체 날짜 일정을 담습니다.</small>
             </div>
-            {moveMessage && <div className="calendar-move-toast" role={moveMessage.failed ? 'alert' : 'status'}>{moveMessage.text}</div>}
+            {moveMessage && <div className="calendar-move-toast" role={moveMessage.failed ? 'alert' : 'status'}><span>{moveMessage.text}</span>{canEdit&&undoMove&&<button type="button" onClick={()=>void undoCalendarMove()}>되돌리기</button>}</div>}
             <div className="calendar-drag-ghost" aria-hidden="true" hidden ref={dragGhost}/>
             {active && <dialog className="schedule-dialog calendar-details" aria-labelledby="visit-detail-title" ref={details}
                 data-closing={detailClosing} inert={detailClosing}

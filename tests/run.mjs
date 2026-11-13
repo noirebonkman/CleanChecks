@@ -68,7 +68,7 @@ const realFile=readFileSync('C:/Users/nesli/Downloads/일/정기청소점검표.
 console.log('PASS: supplied workbook maps B/C/D correctly; exact legacy shift repair; duplicates and ambiguous matches protected');
 const excelUrl=URL.createObjectURL,excelRevoke=URL.revokeObjectURL,excelClick=dom.window.HTMLAnchorElement.prototype.click;let excelBlob;
 URL.createObjectURL=blob=>{excelBlob=blob;return 'blob:excel-test'};URL.revokeObjectURL=()=>{};dom.window.HTMLAnchorElement.prototype.click=()=>{};
-const exportSite={...site,company:'에프엠 시스템',contractPeriod:'2025-01-01 ~ 2025-12-31',workDays:'월·수·금',contact:'010-0000-0000',inspectionNotes:'3층만 점검'};
+const exportSite={...site,company:'에프엠 시스템',contractPeriod:'2025-01-01 ~ 2025-12-31',workDays:'월·수·금',contact:'010-0000-0000',contactName:'현장 담당자',contactPhone:'010-1234-5678',inspectionNotes:'3층만 점검'};
 await api.exportSites([exportSite]);const exportedSheet=XLSX.read(await excelBlob.arrayBuffer()).Sheets['현장 목록'];assert.equal(exportedSheet.A2.v,1);assert.equal(exportedSheet.E2.v,site.name);assert.equal(exportedSheet.C2.v,site.zone);assert.equal(exportedSheet.H2.v,site.address);assert.equal(exportedSheet.J2.v,exportSite.contact);
 const roundTripSites=await api.readSites({arrayBuffer:()=>excelBlob.arrayBuffer()});assert.equal(roundTripSites.valid.length,1);const {id:roundTripId,...roundTrip}=roundTripSites.valid[0];const {id:oldSiteId,...exportFields}=exportSite;assert.deepEqual(roundTrip,exportFields);
 const nameOnly=XLSX.utils.book_new();XLSX.utils.book_append_sheet(nameOnly,XLSX.utils.aoa_to_sheet([XLSX.utils.sheet_to_json(exportedSheet,{header:1})[0],[1,'','','','업체명만 있는 현장'],[2,'','','','계']]),'현장');

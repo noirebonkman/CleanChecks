@@ -3,8 +3,8 @@ import {uid} from './inspection-model';
 import {download} from './local-storage';
 import {siteDetailFields} from './site-details';
 
-const headers = ['순번','구분','지역','계약기간','업체명','근무형태','요일','주소','중요도','현장 연락처','점검 구역·특이사항'];
-const detailColumns = {company:1,contractPeriod:3,workDays:6,contact:9,inspectionNotes:10};
+const headers = ['순번','구분','지역','계약기간','업체명','근무형태','요일','주소','중요도','현장 연락처','점검 구역·특이사항','현장 담당자','담당자 연락처'];
+const detailColumns = {company:1,contractPeriod:3,workDays:6,contact:9,inspectionNotes:10,contactName:11,contactPhone:12};
 const totals = new Set(['계','합계','소계','총계','요약','서머리']);
 
 export async function readSites(file:File) {
@@ -65,11 +65,18 @@ export function planSiteImport(existing:Site[],incoming:Site[]){
 }
 export async function exportSites(sites:Site[]){
  const XLSX=await import('xlsx'),workbook=XLSX.utils.book_new();
- const sheet=XLSX.utils.aoa_to_sheet([headers,...sites.map((s,i)=>[i+1,s.company||'',s.zone,s.contractPeriod||'',s.name,s.cycle,s.workDays||'',s.address,s.priority,s.contact||'',s.inspectionNotes||''])]);
- sheet['!cols']=[8,18,12,27,32,16,19,55,10,23,48].map(wch=>({wch}));
+ const sheet=XLSX.utils.aoa_to_sheet([headers,...sites.map((s,i)=>[i+1,s.company||'',s.zone,s.contractPeriod||'',s.name,s.cycle,s.workDays||'',s.address,s.priority,s.contact||'',s.inspectionNotes||'',s.contactName||'',s.contactPhone||''])]);
+ sheet['!cols']=[8,18,12,27,32,16,19,55,10,23,48,18,23].map(wch=>({wch}));
  sheet['!autofilter']={ref:sheet['!ref']!};
  XLSX.utils.book_append_sheet(workbook,sheet,'현장 목록');
  download(new Blob([XLSX.write(workbook,{type:'array',bookType:'xlsx'})]),'현장목록.xlsx');
+}
+export async function exportSiteImportErrors(errors:{row:number;reason:string}[]) {
+ const XLSX=await import('xlsx'),book=XLSX.utils.book_new();
+ const sheet=XLSX.utils.aoa_to_sheet([['원본 엑셀 행','등록하지 못한 이유'],...errors.map(error=>[error.row,error.reason])]);
+ sheet['!cols']=[{wch:18},{wch:60}];
+ XLSX.utils.book_append_sheet(book,sheet,'등록 오류');
+ download(new Blob([XLSX.write(book,{type:'array',bookType:'xlsx'})]),'현장등록_오류목록.xlsx');
 }
 export async function compress(file:File):Promise<Photo>{
  if(!file.type.startsWith('image/'))throw Error('사진 파일을 선택해 주세요.');
