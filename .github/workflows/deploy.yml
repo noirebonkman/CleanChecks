@@ -53,6 +53,7 @@ jobs:
           node tests/responsive-layout.mjs
           node tests/interface-interactions.mjs
           node tests/branding.mjs
+          node tests/workflow-improvements.mjs
           node tests/app-updates.mjs
       - name: Server tests
         run: npm run server:test

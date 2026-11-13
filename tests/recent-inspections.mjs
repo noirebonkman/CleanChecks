@@ -90,6 +90,14 @@ try{
  await screen.findByText('조건에 맞는 점검 기록이 없습니다.');
  archive.unmount();render(React.createElement(RecentInspections,{user,sites:[],mode:'all'}));
  assert.equal(screen.getByLabelText('상태').value,'draft');
+ cleanup();
+ let deletions=[];
+ render(React.createElement(RecentInspections,{user:{...user,id:'owner-bulk',role:'owner'},sites:[],mode:'all',onDelete:targets=>deletions=targets}));
+ await screen.findByRole('button',{name:/갱신된 현장 · 다른 점검자/});
+ fireEvent.click(screen.getByRole('button',{name:'선택 삭제',exact:true}));
+ fireEvent.click(document.querySelector('.recent-row'));assert(!screen.queryByRole('dialog'));
+ assert(document.querySelector('.recent-select input').checked);
+ fireEvent.click(screen.getByRole('button',{name:'선택 삭제',exact:true}));assert.equal(deletions.length,1);
  console.log('PASS: all-inspector default feed, separate filtered archive, server-scoped inspector/search/status filters, invalid period, reset and retained filter preferences');
  console.log('PASS: shared recent list, modified labels, direct read-only viewing, saved/current site separation, close/scroll/focus return and per-account collapse persistence');
  console.log('PASS: collapsed feeds pause refresh; failed refresh preserves rows; returning online refreshes without losing the page');

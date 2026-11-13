@@ -5,6 +5,10 @@ import { APP_VERSION } from './src/version';
 // 자동 해시 대신 역할과 버전으로 배포 파일을 구분합니다.
 const release = APP_VERSION.replace(/[^a-zA-Z0-9.-]/g, '-');
 const chunkNames: Record<string, string> = {
+    'App': 'inspection',
+    'FieldCalendar': 'calendar',
+    'UserManagement': 'user-management',
+    'AccountSettings': 'account-settings',
     'ReportExport': 'report-export',
     'index': 'pdf-export',
     'index.es': 'pdf-engine',
@@ -22,7 +26,11 @@ export default defineConfig({ base: './', server: { fs: { deny: ['.env', '.env.*
                 chunkFileNames: chunk => 'assets/' + (chunkNames[chunk.name] ?? chunk.name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase()) + '-v' + release + '.js',
                 assetFileNames: asset => {
                     const name = asset.names?.[0] ?? asset.name ?? 'asset';
-                    return name.endsWith('.css') ? 'assets/application-v' + release + '.css' : 'assets/[name]-v' + release + '[extname]';
+                    if (!name.endsWith('.css')) return 'assets/[name]-v' + release + '[extname]';
+                    const stem = name.slice(0,-4);
+                    const role = stem === 'index' || stem === 'style' ? 'application'
+                        : chunkNames[stem] ?? stem.replace(/([a-z0-9])([A-Z])/g,'$1-$2').replace(/[^a-zA-Z0-9-]/g,'-').toLowerCase();
+                    return 'assets/' + role + '-v' + release + '.css';
                 },
             },
         },
